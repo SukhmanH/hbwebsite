@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import PhotoPlaceholder from '../components/PhotoPlaceholder.astro';
+import Photo from '../components/Photo.astro';
 
 const milestones = [
   {
@@ -127,14 +128,21 @@ const practices = [
   <!-- Field photos strip -->
   <section class="mx-auto max-w-6xl px-5 py-20 sm:px-8">
     <div class="grid gap-5 sm:grid-cols-3">
-      <PhotoPlaceholder
-        caption="Hand-pruning in February snow"
-        variant="rows"
+      <Photo
+        src="/images/winter-pruning.jpg"
+        alt="Two crew members hand-pruning dormant vines in the rows"
+        caption="Hand-pruning the dormant rows, late winter"
+        width={720}
+        height={1280}
         class="reveal aspect-[3/4]"
       />
-      <PhotoPlaceholder
-        caption="Harvest crew at first light, Black Sage"
-        variant="harvest"
+      <Photo
+        src="/images/winter-tying-snow.jpg"
+        alt="A crew member tying canes to the trellis post in a snow-dusted vineyard, mountains behind"
+        caption="Tying down canes in February snow"
+        width={1280}
+        height={720}
+        position="56% 50%"
         class="reveal aspect-[3/4]"
         style="--reveal-delay: 100ms;"
       />

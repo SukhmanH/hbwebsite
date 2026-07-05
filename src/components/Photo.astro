@@ -1,0 +1,51 @@
+---
+/**
+ * Real photograph in the same frame as PhotoPlaceholder — grain overlay,
+ * hairline border, gradient caption bar. `position` tunes the object-position
+ * crop when the slot's aspect ratio differs from the photo's.
+ */
+interface Props {
+  src: string;
+  alt: string;
+  caption: string;
+  width: number;
+  height: number;
+  position?: string;
+  class?: string;
+  style?: string;
+}
+
+const {
+  src,
+  alt,
+  caption,
+  width,
+  height,
+  position = '50% 50%',
+  class: className = '',
+  style = '',
+} = Astro.props;
+---
+
+<figure
+  class:list={[
+    'grain relative overflow-hidden rounded-[2px] border border-vine-900/20',
+    className,
+  ]}
+  style={style}
+>
+  <img
+    src={src}
+    alt={alt}
+    width={width}
+    height={height}
+    loading="lazy"
+    class="absolute inset-0 h-full w-full object-cover"
+    style={`object-position: ${position};`}
+  />
+  <figcaption
+    class="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-vine-950/70 to-transparent px-4 pb-3 pt-8"
+  >
+    <span class="text-xs text-bone-100/90">{caption}</span>
+  </figcaption>
+</figure>
