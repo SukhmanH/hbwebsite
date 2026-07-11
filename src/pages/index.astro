@@ -1,179 +1,38 @@
 ---
 import Base from '../layouts/Base.astro';
-import Hero from '../components/Hero.astro';
-import PhotoPlaceholder from '../components/PhotoPlaceholder.astro';
-import { sites, varieties } from '../data/sites';
-
-const stats = [
-  { value: '2011', label: 'First vines in the ground' },
-  { value: '5', label: 'Vineyard sites' },
-  { value: '56', label: 'Kilometres, north to south' },
-  { value: '20+', label: 'Wineries buy our fruit' },
-];
 ---
 
 <Base
-  title="H.B. Bro's Vineyards — Family-grown wine grapes, South Okanagan BC"
-  description="H.B. Bro's Vineyards is a family-owned and operated grape-growing operation with vineyard sites from Naramata to Oliver in BC's South Okanagan. Wine grapes grown for wineries across the valley."
+  title="H.B. Bro's Vineyards — Under Development"
+  description="The H.B. Bro's Vineyards website is currently under development."
 >
-  <Hero />
-
-  <!-- About teaser -->
-  <section class="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
-    <div class="grid items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
-      <div class="reveal">
-        <p class="eyebrow">Family-owned &amp; operated</p>
-        <h2 class="display-lg mt-4">
-          We&rsquo;re growers.<br />Always have been.
-        </h2>
-        <div class="prose-col mt-6 flex flex-col gap-4 text-ink-700">
-          <p>
-            H.B. Bro&rsquo;s isn&rsquo;t a winery with a tasting room and a
-            gift shop. We&rsquo;re the farm on the other end of the bottle
-            &mdash; the family out in the rows before the heat comes up,
-            growing fruit that wineries across the Okanagan turn into wine.
-          </p>
-          <p>
-            We planted our first block in 2011, and the work hasn&rsquo;t
-            changed since: know your dirt, watch your canopy, pick when the
-            fruit says so. What has grown is the ground we farm &mdash; five
-            sites strung down the valley from Naramata to Oliver, growing
-            for more than twenty wineries.
-          </p>
-        </div>
-        <a href="/about" class="btn btn-ghost mt-8">Read our story</a>
-      </div>
-      <PhotoPlaceholder
-        caption="The family at the home block, end of harvest"
-        variant="family"
-        class="reveal aspect-[4/5] w-full"
-      />
-    </div>
-
-    <!-- the numbers, plainly -->
-    <dl class="reveal mt-16 grid grid-cols-2 gap-px border rule bg-vine-900/15 sm:grid-cols-4">
-      {
-        stats.map(({ value, label }) => (
-          <div class="flex flex-col gap-1 bg-bone-100 px-6 py-7">
-            <dd class="tabular font-display text-4xl font-medium text-vine-900" style="font-variation-settings: 'opsz' 72;">
-              {value}
-            </dd>
-            <dt class="text-[0.7rem] font-bold uppercase tracking-[0.14em] text-olive-500">
-              {label}
-            </dt>
-          </div>
-        ))
-      }
-    </dl>
-  </section>
-
-  <!-- The valley run — signature spine, north to south -->
-  <section class="bg-vine-950 py-20 text-bone-100 sm:py-28">
-    <div class="mx-auto max-w-6xl px-5 sm:px-8">
-      <div class="reveal max-w-2xl">
-        <p class="eyebrow eyebrow--light">The vineyards</p>
-        <h2 class="display-lg mt-4 text-bone-50">The valley run</h2>
-        <p class="mt-5 text-bone-200/90">
-          Five sites, fifty-six kilometres, one valley. Each bench grows
-          something different &mdash; that&rsquo;s the point. Cool lake fruit
-          in the north, desert reds in the south, and everything a winemaker
-          could ask for in between.
-        </p>
+  <section class="px-5 py-20 sm:px-8 sm:py-28">
+    <div class="mx-auto flex min-h-[70vh] max-w-4xl flex-col items-center justify-center rounded-[2px] border border-vine-900/15 bg-bone-50/80 px-6 py-16 text-center shadow-[0_18px_60px_rgba(32,41,32,0.08)] sm:px-10 lg:px-16">
+      <div class="mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-vine-900/15 bg-vine-900/5">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 64 64"
+          class="h-10 w-10 text-clay-500"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="18" y="28" width="28" height="20" rx="4" />
+          <path d="M24 28V22a8 8 0 1 1 16 0v6" />
+          <circle cx="32" cy="38" r="2.5" />
+        </svg>
       </div>
 
-      <ol class="mt-14 border-l border-gold-400/30">
-        {
-          sites.map((site) => (
-            <li class="reveal group relative pb-10 pl-8 last:pb-0 sm:pl-12">
-              <span
-                class="absolute -left-[5px] top-2 h-[9px] w-[9px] rounded-full bg-gold-400 transition-transform group-hover:scale-150"
-                aria-hidden="true"
-              />
-              <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span class="tabular text-[0.68rem] font-bold uppercase tracking-[0.2em] text-gold-300">
-                  km {site.km}
-                </span>
-                <h3 class="font-display text-2xl font-medium text-bone-50" style="font-variation-settings: 'opsz' 60, 'SOFT' 40;">
-                  {site.name}
-                </h3>
-                <span class="text-sm text-olive-300">{site.locality}</span>
-              </div>
-              <p class="mt-2 max-w-xl text-sm leading-relaxed text-bone-200/80">
-                {site.grapes.join(' · ')}
-              </p>
-            </li>
-          ))
-        }
-      </ol>
-
-      <a href="/vineyards" class="btn btn-ghost--light reveal mt-14">
-        Walk the sites
-      </a>
-    </div>
-  </section>
-
-  <!-- What we grow -->
-  <section class="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
-    <div class="reveal max-w-2xl">
-      <p class="eyebrow">What we grow</p>
-      <h2 class="display-lg mt-4">A dozen varieties, each in its place</h2>
-      <p class="prose-col mt-5 text-ink-700">
-        The South Okanagan lets a grower do what few places in Canada can:
-        ripen crisp Riesling and full Cabernet Sauvignon on the same farm,
-        an hour apart. We plant what each site does best and sell the fruit
-        to wineries throughout the valley.
+      <p class="eyebrow">Currently in progress</p>
+      <h1 class="display-xl mt-4">Under development</h1>
+      <p class="prose-col mt-6 text-lg text-ink-700">
+        This site is being refreshed to better reflect the farm, the vineyards,
+        and the work behind every vintage. Please check back soon.
       </p>
-    </div>
 
-    <div class="mt-12 grid gap-8 sm:grid-cols-2">
-      <div class="reveal border-t-2 border-gold-400 pt-6">
-        <h3 class="display-md">Whites</h3>
-        <ul class="mt-4 flex flex-wrap gap-2">
-          {
-            varieties.whites.map((v) => (
-              <li class="rounded-[2px] border rule bg-bone-50 px-3 py-1.5 text-sm text-ink-700">
-                {v}
-              </li>
-            ))
-          }
-        </ul>
-        <p class="mt-4 text-sm text-olive-500">
-          Mostly the northern sites — Naramata and Skaha benches.
-        </p>
-      </div>
-      <div class="reveal border-t-2 border-clay-500 pt-6" style="--reveal-delay: 120ms;">
-        <h3 class="display-md">Reds</h3>
-        <ul class="mt-4 flex flex-wrap gap-2">
-          {
-            varieties.reds.map((v) => (
-              <li class="rounded-[2px] border rule bg-bone-50 px-3 py-1.5 text-sm text-ink-700">
-                {v}
-              </li>
-            ))
-          }
-        </ul>
-        <p class="mt-4 text-sm text-olive-500">
-          The warm south — Golden Mile and Black Sage, mostly.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Contact band -->
-  <section class="grain relative overflow-hidden bg-vine-900 py-20 sm:py-24">
-    <div class="relative z-10 mx-auto flex max-w-6xl flex-col items-start gap-8 px-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
-      <div class="reveal max-w-xl">
-        <p class="eyebrow eyebrow--light">Work with us</p>
-        <h2 class="display-lg mt-4 text-bone-50">
-          Looking for fruit next vintage?
-        </h2>
-        <p class="mt-4 text-bone-200/90">
-          We contract grapes to wineries across the Okanagan — long-standing
-          partners and new labels alike. If you&rsquo;re after a particular
-          variety or block, talk to us early in the season.
-        </p>
-      </div>
-      <a href="/contact" class="btn btn-clay reveal shrink-0">Start the conversation</a>
+      <a href="/contact" class="btn btn-clay mt-8">Get in touch</a>
     </div>
   </section>
 </Base>
