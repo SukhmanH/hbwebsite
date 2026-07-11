@@ -8,9 +8,11 @@ import Footer from '../components/Footer.astro';
 interface Props {
   title: string;
   description: string;
+  showHeader?: boolean;
+  showFooter?: boolean;
 }
 
-const { title, description } = Astro.props;
+const { title, description, showHeader = true, showFooter = true } = Astro.props;
 ---
 
 <!doctype html>
@@ -42,11 +44,11 @@ const { title, description } = Astro.props;
     >
       Skip to content
     </a>
-    <Header />
+    {showHeader && <Header />}
     <main id="main">
       <slot />
     </main>
-    <Footer />
+    {showFooter && <Footer />}
 
     <script>
       // Scroll reveal — adds .is-visible once, then unobserves.

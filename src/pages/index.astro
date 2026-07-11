@@ -5,14 +5,22 @@ import Base from '../layouts/Base.astro';
 <Base
   title="H.B. Bro's Vineyards — Under Development"
   description="The H.B. Bro's Vineyards website is currently under development."
+  showHeader={false}
+  showFooter={false}
 >
-  <section class="px-5 py-20 sm:px-8 sm:py-28">
-    <div class="mx-auto flex min-h-[70vh] max-w-4xl flex-col items-center justify-center rounded-[2px] border border-vine-900/15 bg-bone-50/80 px-6 py-16 text-center shadow-[0_18px_60px_rgba(32,41,32,0.08)] sm:px-10 lg:px-16">
-      <div class="mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-vine-900/15 bg-vine-900/5">
+  <section class="relative isolate overflow-hidden px-5 py-8 sm:px-8 sm:py-10 lg:py-12">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(201,162,75,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(180,85,45,0.16),_transparent_36%)]" />
+    <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-vine-900/20 to-transparent" />
+
+    <div class="relative mx-auto flex min-h-[calc(100vh-2rem)] max-w-5xl flex-col items-center justify-center rounded-[2px] border border-vine-900/15 bg-bone-50/85 px-6 py-16 text-center shadow-[0_24px_90px_rgba(32,41,32,0.12)] backdrop-blur-sm sm:px-10 lg:px-16 lg:py-20">
+      <div class="absolute inset-x-8 top-8 h-px bg-gradient-to-r from-transparent via-gold-400/70 to-transparent" />
+      <div class="absolute inset-x-8 bottom-8 h-px bg-gradient-to-r from-transparent via-vine-900/15 to-transparent" />
+
+      <div class="mb-8 flex h-24 w-24 items-center justify-center rounded-full border border-vine-900/15 bg-gradient-to-br from-bone-50 via-bone-100 to-vine-900/5 shadow-[0_10px_30px_rgba(32,41,32,0.08)] sm:h-28 sm:w-28">
         <svg
           aria-hidden="true"
           viewBox="0 0 64 64"
-          class="h-10 w-10 text-clay-500"
+          class="h-11 w-11 text-clay-500 sm:h-12 sm:w-12"
           fill="none"
           stroke="currentColor"
           stroke-width="2.2"
@@ -25,14 +33,19 @@ import Base from '../layouts/Base.astro';
         </svg>
       </div>
 
-      <p class="eyebrow">Currently in progress</p>
-      <h1 class="display-xl mt-4">Under development</h1>
-      <p class="prose-col mt-6 text-lg text-ink-700">
-        This site is being refreshed to better reflect the farm, the vineyards,
-        and the work behind every vintage. Please check back soon.
+      <p class="eyebrow">A private invitation</p>
+      <h1 class="display-xl mt-4 max-w-3xl">A new chapter is being prepared</h1>
+      <p class="prose-col mt-6 text-lg leading-8 text-ink-700 sm:text-xl">
+        This site is being refined into a more considered expression of the
+        farm, the vineyards, and the quiet work behind every harvest.
       </p>
 
-      <a href="/contact" class="btn btn-clay mt-8">Get in touch</a>
+      <div class="mt-8 flex flex-col items-center gap-3 sm:flex-row">
+        <a href="/contact" class="btn btn-clay">Get in touch</a>
+        <span class="text-sm uppercase tracking-[0.22em] text-olive-500">
+          Opening soon
+        </span>
+      </div>
     </div>
   </section>
 </Base>
