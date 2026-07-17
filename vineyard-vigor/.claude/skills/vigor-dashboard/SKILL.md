@@ -22,13 +22,38 @@ PYTHONPATH=src uv run python -m vigor.webdash
 (The package is not installed into the venv; pytest gets `src` via pythonpath, a
 plain `python -m` does not.)
 
+## Repo layout (changed 2026-07-17 — read this before any git operation)
+
+This project now lives INSIDE the website repo: the `ML vineyard` folder is a
+clone of https://github.com/SukhmanH/hbwebsite (working branch `main-clean`,
+site deploys from `main`), and `vineyard-vigor/` is a tracked subfolder — it
+has no `.git` of its own anymore. The repo history was rewritten on
+2026-07-17 to purge large binaries; clones from before that date (e.g. any
+stray `Desktop/hb website` copy) have invalid history and must be hard-reset
+to `origin/main` or re-cloned, never merged from.
+
+Weekly pipeline runs modify `data/processed/*.parquet` in the working tree;
+that's expected — commit them when convenient.
+
+## Theme (the page wears the H.B. Bro's site design)
+
+The dashboard's CSS mirrors the site tokens in `src/styles/global.css`
+(bone grounds, vine greens, clay/gold accents, squared corners, Fraunces
+display + Karla text). Fraunces/Karla load from `public/vigor/fonts/*.woff2`
+(~100 KB, relative `fonts/` URLs with Georgia/system fallbacks — the page
+still works without them; local previews need copies in
+`outputs/dashboard/fonts/`). Never let a history cleanup delete those fonts.
+Chart SERIES colors stay the CVD-validated dataviz categorical theme — brand
+greens/golds cannot form a colorblind-safe palette; the vine-green ordinal
+zone ramps and both series palettes were validated against the bone-50
+(#f6f1e4) and vine-950 (#202920) chart surfaces with the dataviz validator.
+
 ## Automation and publishing (the page ships with the family website)
 
-The dashboard is committed as `public/vigor/index.html` in
-https://github.com/SukhmanH/hbwebsite (Astro, linked in the site nav as
-"Vigor Data"); once that site is hosted it serves at `/vigor/` (intended
-domain hbbrosvineyards.com — NOT resolving as of 2026-07-17, hosting not yet
-connected; verify before quoting a live URL).
+The dashboard is committed as `public/vigor/index.html` in the same repo
+(linked in the site nav as "Vigor Data"); once the site is hosted it serves
+at `/vigor/` (intended domain hbbrosvineyards.com — NOT resolving as of
+2026-07-17, hosting not yet connected; verify before quoting a live URL).
 
 `scripts/weekly_update.py` is the Phase 6 orchestrator: incremental Earth
 Engine pull (short window since the last stored date — a year-wide interactive
