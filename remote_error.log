@@ -1,7 +1,0 @@
-2026-07-17T00:08:48.556Z [DEBUG] MDM settings load completed in 54ms
-2026-07-17T00:08:48.556Z [DEBUG] MDM settings load completed in 54ms
-2026-07-17T00:08:48.597Z [DEBUG] Broken symlink or missing file encountered for settings.json at path: C:\Users\brylan\Desktop\ML vineyard\.claude\settings.json
-2026-07-17T00:08:48.598Z [DEBUG] Broken symlink or missing file encountered for settings.json at path: C:\Users\brylan\Desktop\ML vineyard\.claude\settings.local.json
-2026-07-17T00:08:48.599Z [DEBUG] Broken symlink or missing file encountered for settings.json at path: C:\Program Files\ClaudeCode\managed-settings.json
-2026-07-17T00:08:48.758Z [DEBUG] Error log sink initialized
-2026-07-17T00:08:48.763Z [DEBUG] Error log sink initialized
