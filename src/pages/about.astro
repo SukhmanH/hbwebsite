@@ -1,0 +1,163 @@
+---
+import Base from '../layouts/Base.astro';
+import PhotoPlaceholder from '../components/PhotoPlaceholder.astro';
+import Photo from '../components/Photo.astro';
+
+const milestones = [
+  {
+    era: '2011',
+    title: 'The first block',
+    body:
+      'We put our first vines in the ground outside Oliver in the spring of 2011 — one family, one used tractor, and a dry hillside we were sure wanted to grow wine grapes. Everybody pitched in until the vines could pay their own way.',
+  },
+  {
+    era: '2014',
+    title: 'First fruit sold',
+    body:
+      'Our first real harvest went to a single winery down the road. They came back the next vintage and brought a neighbour with them. That’s how it’s grown ever since — one handshake at a time.',
+  },
+  {
+    era: '2018',
+    title: 'Up the valley',
+    body:
+      'With the home block established, we took the operation north — a lease on the Skaha Bench first, then ground at Okanagan Falls and Naramata, and more benchland around Oliver. Different benches, different fruit, one standard of farming.',
+  },
+  {
+    era: 'Today',
+    title: 'Five sites, twenty-some wineries',
+    body:
+      'What started as one block is now five sites and fruit in the tanks of more than twenty wineries across the Okanagan — labels that took a chance on us in year one, and new ones every vintage.',
+  },
+];
+
+const practices = [
+  {
+    title: 'Farm the site you have',
+    body:
+      'No two benches down this valley grow alike, so we don’t farm them alike. Rootstock, row orientation, canopy — every decision starts with the dirt underfoot, not a manual.',
+  },
+  {
+    title: 'Water like it’s the desert',
+    body:
+      'Because it is one. Drip irrigation on every block, soil-moisture monitoring, deficit watering that pushes roots deep and flavour deeper. The valley’s water is not ours to waste.',
+  },
+  {
+    title: 'Keep it in the community',
+    body:
+      'Our fruit is trucked to wineries up and down the Okanagan, our crews come from the towns we live in, and our equipment gets fixed by the shop down the road. That’s not marketing — that’s just how the valley works.',
+  },
+];
+---
+
+<Base
+  title="About Us — H.B. Bro's Vineyards"
+  description="Family-owned and operated since 2011. The story of H.B. Bro's Vineyards — from one block outside Oliver to five vineyard sites across the South Okanagan, growing grapes for more than twenty wineries."
+>
+  <!-- Page header -->
+  <section class="mx-auto max-w-6xl px-5 pb-16 pt-20 sm:px-8 sm:pt-28">
+    <p class="eyebrow hero-rise">About us</p>
+    <h1 class="display-xl hero-rise mt-4 max-w-3xl" style="--rise-delay: 120ms;">
+      Same family. Same valley. Same work.
+    </h1>
+    <p class="hero-rise prose-col mt-6 text-lg text-ink-700" style="--rise-delay: 240ms;">
+      Plenty of operations in wine country talk about family. Ours is the kind
+      where the family answers the phone, drives the tractor, and argues about
+      picking dates at the dinner table.
+    </p>
+  </section>
+
+  <!-- Story -->
+  <section class="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
+    <div class="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-start">
+      <PhotoPlaceholder
+        caption="The first rows going in at the home block, spring 2011"
+        variant="family"
+        class="reveal aspect-[4/5] w-full lg:sticky lg:top-24"
+      />
+      <div>
+        <h2 class="reveal display-lg">One block at a time</h2>
+        <ol class="mt-10 flex flex-col">
+          {
+            milestones.map(({ era, title, body }, i) => (
+              <li
+                class="reveal grid gap-2 border-t rule py-8 first:border-t-0 first:pt-0 sm:grid-cols-[90px_1fr] sm:gap-6"
+                style={`--reveal-delay: ${i * 90}ms;`}
+              >
+                <span class="tabular pt-1 text-sm font-bold uppercase tracking-[0.14em] text-clay-500">
+                  {era}
+                </span>
+                <div>
+                  <h3 class="display-md">{title}</h3>
+                  <p class="prose-col mt-3 text-ink-700">{body}</p>
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- How we farm -->
+  <section class="bg-vine-950 py-20 text-bone-100 sm:py-28">
+    <div class="mx-auto max-w-6xl px-5 sm:px-8">
+      <div class="reveal max-w-2xl">
+        <p class="eyebrow eyebrow--light">How we work</p>
+        <h2 class="display-lg mt-4 text-bone-50">
+          Nothing fancy. Everything careful.
+        </h2>
+      </div>
+      <div class="mt-12 grid gap-px border border-bone-100/10 bg-bone-100/10 sm:grid-cols-3">
+        {
+          practices.map(({ title, body }, i) => (
+            <article
+              class="reveal flex flex-col gap-3 bg-vine-950 p-7"
+              style={`--reveal-delay: ${i * 110}ms;`}
+            >
+              <h3 class="font-display text-xl font-medium text-gold-300" style="font-variation-settings: 'opsz' 40, 'SOFT' 40;">
+                {title}
+              </h3>
+              <p class="text-sm leading-relaxed text-bone-200/85">{body}</p>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Field photos strip -->
+  <section class="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+    <div class="grid gap-5 sm:grid-cols-3">
+      <Photo
+        src="/images/winter-pruning.jpg"
+        alt="Two crew members hand-pruning dormant vines in the rows"
+        caption="Hand-pruning the dormant rows, late winter"
+        width={720}
+        height={1280}
+        class="reveal aspect-[3/4]"
+      />
+      <Photo
+        src="/images/winter-tying-snow.jpg"
+        alt="A crew member tying canes to the trellis post in a snow-dusted vineyard, mountains behind"
+        caption="Tying down canes in February snow"
+        width={1280}
+        height={720}
+        position="56% 50%"
+        class="reveal aspect-[3/4]"
+        style="--reveal-delay: 100ms;"
+      />
+      <PhotoPlaceholder
+        caption="The whole family at the row end, harvest morning"
+        variant="bench"
+        class="reveal aspect-[3/4]"
+        style="--reveal-delay: 200ms;"
+      />
+    </div>
+    <div class="reveal mt-16 flex flex-col items-start gap-6 border-t rule pt-10 sm:flex-row sm:items-center sm:justify-between">
+      <p class="display-md max-w-lg">
+        The proof of all of it is in the rows.
+      </p>
+      <a href="/vineyards" class="btn btn-clay shrink-0">See the vineyards</a>
+    </div>
+  </section>
+</Base>

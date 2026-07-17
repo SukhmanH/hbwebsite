@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   H.B. Bro's Vineyards — design tokens
+   Palette drawn from the South Okanagan benchland: sagebrush shadow,
+   vine canopy, dried grass, sun-baked clay, limestone bone.
+--------------------------------------------------------------------------- */
+@theme {
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "Karla Variable", "Segoe UI", system-ui, sans-serif;
+
+  /* grounds */
+  --color-bone-50: #f6f1e4;
+  --color-bone-100: #ede6d6;
+  --color-bone-200: #e2d7bf;
+  --color-bone-300: #d3c4a3;
+
+  /* greens — canopy and shadow */
+  --color-vine-950: #202920;
+  --color-vine-900: #2e3a2c;
+  --color-vine-800: #3a4a34;
+  --color-vine-700: #4b5d3a;
+  --color-vine-600: #5b7046;
+
+  /* olive-grey neutral, hue-biased toward the greens */
+  --color-olive-300: #a3ac95;
+  --color-olive-400: #87927a;
+  --color-olive-500: #6b7a5e;
+
+  /* dried grass / late light */
+  --color-gold-300: #dcbd6f;
+  --color-gold-400: #c9a24b;
+  --color-gold-500: #b18a33;
+
+  /* benchland clay — the one bold accent, spent sparingly */
+  --color-clay-500: #b4552d;
+  --color-clay-600: #9a4523;
+
+  /* warm ink for body text */
+  --color-ink-900: #2b2a22;
+  --color-ink-700: #4a4839;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-bone-100);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 40, "WONK" 0;
+    line-height: 1.08;
+    text-wrap: balance;
+    color: var(--color-vine-900);
+  }
+
+  ::selection {
+    background-color: var(--color-gold-400);
+    color: var(--color-vine-950);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-clay-500);
+    outline-offset: 3px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Components
+--------------------------------------------------------------------------- */
+@layer components {
+  /* uppercase field-ledger eyebrow */
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-clay-500);
+  }
+
+  .eyebrow--light {
+    color: var(--color-gold-300);
+  }
+
+  /* display sizes — Fraunces at high optical size */
+  .display-xl {
+    font-size: clamp(2.75rem, 7.5vw, 5.5rem);
+    font-weight: 480;
+    font-variation-settings: "opsz" 144, "SOFT" 40, "WONK" 0;
+    letter-spacing: -0.015em;
+  }
+
+  .display-lg {
+    font-size: clamp(2.1rem, 4.5vw, 3.4rem);
+    font-weight: 500;
+    font-variation-settings: "opsz" 100, "SOFT" 40, "WONK" 0;
+    letter-spacing: -0.01em;
+  }
+
+  .display-md {
+    font-size: clamp(1.5rem, 2.6vw, 2rem);
+    font-weight: 540;
+    font-variation-settings: "opsz" 72, "SOFT" 40, "WONK" 0;
+  }
+
+  /* running text column */
+  .prose-col {
+    max-width: 62ch;
+  }
+
+  /* buttons — squared-off, farm-utilitarian; no rounded-lg here */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1.7rem;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-radius: 2px;
+    transition: background-color 180ms ease, color 180ms ease,
+      border-color 180ms ease, transform 180ms ease;
+  }
+
+  .btn-clay {
+    background-color: var(--color-clay-500);
+    color: var(--color-bone-50);
+  }
+  .btn-clay:hover {
+    background-color: var(--color-clay-600);
+  }
+
+  .btn-ghost {
+    border: 1px solid color-mix(in srgb, var(--color-vine-900) 45%, transparent);
+    color: var(--color-vine-900);
+  }
+  .btn-ghost:hover {
+    border-color: var(--color-vine-900);
+    background-color: color-mix(in srgb, var(--color-vine-900) 6%, transparent);
+  }
+
+  .btn-ghost--light {
+    border: 1px solid color-mix(in srgb, var(--color-bone-100) 45%, transparent);
+    color: var(--color-bone-100);
+  }
+  .btn-ghost--light:hover {
+    border-color: var(--color-bone-100);
+    background-color: color-mix(in srgb, var(--color-bone-100) 8%, transparent);
+  }
+
+  /* hairline rule in the ground's hue */
+  .rule {
+    border-color: color-mix(in srgb, var(--color-vine-900) 16%, transparent);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Utilities
+--------------------------------------------------------------------------- */
+@layer utilities {
+  /* film-grain overlay — gives flat gradient placeholders a physical feel */
+  .grain {
+    position: relative;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.55;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion — scroll reveal (IntersectionObserver adds .is-visible)
+--------------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* hero load sequence */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-rise {
+  animation: hero-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--rise-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .hero-rise {
+    animation: none;
+  }
+}

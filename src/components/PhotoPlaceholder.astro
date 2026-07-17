@@ -1,0 +1,53 @@
+---
+/**
+ * Photography placeholder. Each variant is a layered-gradient sketch of the
+ * shot that belongs in the slot; the caption doubles as the photographer's
+ * shot list. Swap for a real <img> in public/images/ when photos arrive.
+ */
+interface Props {
+  caption: string;
+  variant?: 'bench' | 'rows' | 'lake' | 'clay' | 'family' | 'harvest';
+  class?: string;
+  style?: string;
+}
+
+const { caption, variant = 'bench', class: className = '', style = '' } = Astro.props;
+
+const scenes: Record<string, string> = {
+  // dusty gold sky over an olive bench line
+  bench:
+    'linear-gradient(180deg, #e2d7bf 0%, #dcbd6f 38%, #c9a24b 52%, #87927a 66%, #4b5d3a 84%, #2e3a2c 100%)',
+  // vine rows running away downhill
+  rows:
+    'repeating-linear-gradient(104deg, transparent 0 26px, rgba(32,41,32,0.28) 26px 30px), linear-gradient(180deg, #a3ac95 0%, #5b7046 45%, #3a4a34 78%, #202920 100%)',
+  // lake sliver under benchland
+  lake:
+    'linear-gradient(180deg, #dcbd6f 0%, #c9a24b 30%, #6b7a5e 48%, #3a4a34 58%, #5b7046 62%, #87927a 70%, #4b5d3a 100%)',
+  // sun-baked cutbank soil
+  clay:
+    'linear-gradient(180deg, #dcbd6f 0%, #c9a24b 26%, #b4552d 58%, #9a4523 82%, #4a4839 100%)',
+  // warm portrait light
+  family:
+    'radial-gradient(120% 90% at 50% 20%, #e2d7bf 0%, #dcbd6f 42%, #b18a33 72%, #4a4839 100%)',
+  // bins of fruit at first light
+  harvest:
+    'linear-gradient(180deg, #87927a 0%, #6b7a5e 32%, #b18a33 55%, #b4552d 78%, #2e3a2c 100%)',
+};
+---
+
+<figure
+  class:list={[
+    'grain relative overflow-hidden rounded-[2px] border border-vine-900/20',
+    className,
+  ]}
+  style={`background-image: ${scenes[variant]}; ${style}`}
+>
+  <figcaption
+    class="absolute bottom-0 left-0 right-0 z-10 flex items-baseline gap-2 bg-gradient-to-t from-vine-950/70 to-transparent px-4 pb-3 pt-8"
+  >
+    <span class="text-[0.6rem] font-bold uppercase tracking-[0.22em] text-gold-300">
+      Photo
+    </span>
+    <span class="text-xs text-bone-100/90">{caption}</span>
+  </figcaption>
+</figure>

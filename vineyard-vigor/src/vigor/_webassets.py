@@ -1,0 +1,914 @@
+"""HTML/CSS/JS template for the interactive dashboard (see webdash.py).
+
+Kept apart from the data-prep so webdash.py stays readable. render_page takes
+the JSON payload and returns the full self-contained page. The charts are
+hand-rolled SVG + vanilla JS (no external hosts, no server).
+
+Look and feel: the H.B. Bro's Vineyards site theme (bone grounds, vine greens,
+clay/gold accents, Fraunces display + Karla text, squared corners) - tokens
+mirror hbwebsite's src/styles/global.css. Chart SERIES colors stay the
+CVD-validated dataviz categorical theme (brand greens/golds cannot form a
+colorblind-safe 7-slot palette); both series palettes and the green ordinal
+zone ramps were re-validated against the bone-50 and vine-950 chart surfaces.
+Fonts load from a relative fonts/ folder with Georgia/system fallbacks, so the
+page still renders self-contained when the woff2 files are absent.
+"""
+
+from __future__ import annotations
+
+# Data-labels come from parquet/CSV headers; the JS inserts every one via
+# textContent, never innerHTML, per the dataviz "labels are untrusted" rule.
+
+_CSS = """
+@font-face {
+  font-family:"Fraunces Variable";
+  src:url("fonts/fraunces-latin-opsz-normal.woff2") format("woff2-variations");
+  font-weight:100 900; font-style:normal; font-display:swap;
+}
+@font-face {
+  font-family:"Karla Variable";
+  src:url("fonts/karla-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+:root {
+  /* H.B. Bro's tokens - benchland bone, vine canopy, clay + gold accents */
+  --ink:#2b2a22; --heading:#2e3a2c; --muted:#4a4839; --faint:#87927a;
+  --surface:#f6f1e4; --plane:#ede6d6;
+  --hairline:rgba(46,58,44,0.16); --baseline:#a3ac95;
+  --clay:#b4552d; --clay-deep:#9a4523; --gold:#c9a24b;
+  --accent:#2a78d6; --critical:#d03b3b; --good:#0ca30c; --warn:#eb6834;
+  --success-text:#006300;
+  --band:rgba(42,120,214,0.10);
+  --crit-tint:rgba(208,59,59,0.10); --good-tint:rgba(12,99,12,0.10);
+  --warn-tint:rgba(180,85,45,0.12); --mute-tint:rgba(107,122,94,0.12);
+  --shadow:0 1px 2px rgba(32,41,32,0.06);
+  --font-display:"Fraunces Variable",Georgia,"Times New Roman",serif;
+  --font-sans:"Karla Variable","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink:#f6f1e4; --heading:#ede6d6; --muted:#d3c4a3; --faint:#a3ac95;
+    --surface:#202920; --plane:#171d17;
+    --hairline:rgba(246,241,228,0.14); --baseline:#6b7a5e;
+    --clay:#dcbd6f; --clay-deep:#c9a24b; --gold:#dcbd6f;
+    --accent:#3987e5; --critical:#e66767; --good:#0ca30c; --warn:#d95926;
+    --success-text:#0ca30c;
+    --band:rgba(57,135,229,0.16);
+    --crit-tint:rgba(230,103,103,0.14); --good-tint:rgba(12,163,12,0.14);
+    --warn-tint:rgba(217,89,38,0.16); --mute-tint:rgba(163,172,149,0.14);
+    --shadow:none;
+  }
+}
+* { box-sizing:border-box; }
+::selection { background:var(--gold); color:#202920; }
+:focus-visible { outline:2px solid var(--clay); outline-offset:3px; }
+body {
+  margin:0; background:var(--plane); color:var(--ink);
+  font-family:var(--font-sans); line-height:1.55; font-size:15px;
+  -webkit-font-smoothing:antialiased;
+}
+h1, h2, h3 {
+  font-family:var(--font-display); color:var(--heading);
+  font-variation-settings:"SOFT" 40, "WONK" 0; line-height:1.12;
+}
+header { border-bottom:1px solid var(--hairline); background:var(--surface); }
+.brandbar {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  max-width:1180px; margin:0 auto; padding:14px 32px;
+  border-bottom:1px solid var(--hairline);
+}
+.wordmark { display:flex; align-items:baseline; gap:8px; text-decoration:none; }
+.wordmark .wm-name {
+  font-family:var(--font-display); font-size:21px; font-weight:600;
+  letter-spacing:-0.01em; color:var(--heading);
+  font-variation-settings:"opsz" 60, "SOFT" 40;
+}
+.wordmark .wm-sub {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.24em; color:var(--faint);
+}
+.backlink {
+  font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em;
+  color:var(--muted); text-decoration:none; border:1px solid var(--hairline);
+  border-radius:2px; padding:7px 14px; transition:border-color .15s, color .15s;
+}
+.backlink:hover { border-color:var(--heading); color:var(--heading); }
+.masthead {
+  display:flex; flex-wrap:wrap; gap:10px 18px; align-items:end;
+  justify-content:space-between; max-width:1180px; margin:0 auto;
+  padding:24px 32px 20px;
+}
+.eyebrow {
+  font-size:11px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--clay); margin-bottom:6px;
+}
+.masthead h1 {
+  margin:0; font-size:clamp(26px, 3.4vw, 34px); font-weight:500;
+  font-variation-settings:"opsz" 100, "SOFT" 40, "WONK" 0; letter-spacing:-0.01em;
+}
+.masthead .meta { color:var(--muted); font-size:13px; margin-top:6px; }
+main { max-width:1180px; margin:0 auto; padding:22px 32px 48px; }
+footer {
+  max-width:1180px; margin:0 auto; padding:6px 32px 40px;
+  color:var(--faint); font-size:12px;
+}
+
+.chip {
+  display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.1em;
+  padding:8px 14px; border-radius:2px; border:1px solid var(--hairline);
+}
+.chip.alert { color:var(--critical); background:var(--crit-tint); border-color:transparent; }
+.chip.ok    { color:var(--success-text); background:var(--good-tint); border-color:transparent; }
+.chip.mute  { color:var(--muted); background:var(--mute-tint); border-color:transparent; }
+
+section {
+  background:var(--surface); border:1px solid var(--hairline);
+  border-radius:3px; padding:22px 24px; margin:18px 0; box-shadow:var(--shadow);
+}
+h2 { margin:0 0 4px; font-size:21px; font-weight:540;
+     font-variation-settings:"opsz" 72, "SOFT" 40, "WONK" 0; }
+h3 { margin:18px 0 6px; font-size:16px; font-weight:560; }
+.caption { color:var(--muted); font-size:13px; margin:2px 0 14px; max-width:72ch; }
+.sub { color:var(--muted); font-weight:400; font-size:13px; font-family:var(--font-sans); }
+
+/* block overview cards (also the block switcher) */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin:2px 0 4px; }
+.card {
+  text-align:left; font:inherit; color:inherit; cursor:pointer; display:block; width:100%;
+  background:var(--surface); border:1px solid var(--hairline); border-radius:3px;
+  padding:14px 16px 12px; box-shadow:var(--shadow); transition:border-color .15s;
+}
+.card:hover { border-color:var(--baseline); }
+.card[aria-pressed="true"] { border-color:var(--clay); box-shadow:0 0 0 1px var(--clay); }
+.card .toprow { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.card .name { font-weight:700; font-size:15px; }
+.card .subline { color:var(--muted); font-size:12px; margin-top:1px; }
+.card .bottomrow { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; margin-top:10px; }
+.card .big {
+  font-family:var(--font-display); font-size:27px; font-weight:520; line-height:1.05;
+  font-variation-settings:"opsz" 72, "SOFT" 40, "WONK" 0; color:var(--heading);
+}
+.card .big .u { font-family:var(--font-sans); font-size:10px; color:var(--faint); font-weight:700;
+  letter-spacing:0.1em; margin-left:4px; }
+.card .deltaline { font-size:12px; margin-top:3px; color:var(--muted); }
+
+.pill {
+  display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.08em;
+  padding:3px 8px; border-radius:2px; white-space:nowrap;
+}
+.pill.crit { color:var(--critical); background:var(--crit-tint); }
+.pill.warn { color:var(--warn); background:var(--warn-tint); }
+.pill.good { color:var(--success-text); background:var(--good-tint); }
+.pill.mute { color:var(--muted); background:var(--mute-tint); }
+
+.up { color:var(--success-text); } .down { color:var(--critical); }
+
+/* triage banner */
+.banner { border-left:4px solid var(--good); }
+.banner.alert { border-left-color:var(--critical); }
+.reading { margin:2px 0 10px; font-size:14px; }
+.flagline { display:flex; align-items:baseline; gap:8px; margin:6px 0; font-size:14px; }
+.flagline .glyph { color:var(--critical); font-weight:700; flex:0 0 auto; }
+.flagline b { font-weight:650; }
+.flagline .detail { color:var(--muted); font-size:13px; }
+
+/* KPI tiles */
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.kpi { border:1px solid var(--hairline); border-radius:2px; padding:13px 16px; background:var(--plane); }
+.kpi .label { color:var(--faint); font-size:10.5px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.14em; }
+.kpi .value {
+  font-family:var(--font-display); font-size:27px; font-weight:520; margin-top:4px;
+  line-height:1.1; font-variation-settings:"opsz" 72, "SOFT" 40, "WONK" 0;
+  color:var(--heading);
+}
+.kpi .sub2 { font-size:12px; color:var(--muted); margin-top:3px; }
+.kpi.alert .value { color:var(--critical); }
+.kpi.ok .value { color:var(--success-text); }
+
+/* legend / toggles */
+.legend { display:flex; flex-wrap:wrap; gap:4px 10px; margin:2px 0 8px; }
+.legend button, .legend .item {
+  display:inline-flex; align-items:center; gap:6px; border:0; background:none;
+  color:var(--ink); font-size:13px; padding:3px 6px; border-radius:6px;
+  font-variant-numeric:tabular-nums;
+}
+.legend button { cursor:pointer; }
+.legend button:hover { background:var(--plane); }
+.legend button[aria-pressed="false"] { color:var(--faint); }
+.legend .swatch { width:16px; height:3px; border-radius:2px; flex:0 0 auto; }
+.legend .dotswatch { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+.legend .bandswatch { width:16px; height:10px; border-radius:2px; flex:0 0 auto; }
+.legend button[aria-pressed="false"] .swatch { opacity:.35; }
+.legend .item { color:var(--muted); }
+
+/* charts */
+.chart { position:relative; width:100%; }
+svg { display:block; width:100%; height:auto; overflow:visible; }
+.axis text { fill:var(--faint); font-size:11px; }
+.gridline { stroke:var(--hairline); stroke-width:1; }
+.tooltip {
+  position:absolute; pointer-events:none; background:var(--surface); color:var(--ink);
+  border:1px solid var(--hairline); border-radius:2px; padding:8px 10px; font-size:12px;
+  box-shadow:0 6px 18px rgba(32,41,32,.18); min-width:120px; opacity:0; transition:opacity .08s;
+  z-index:5; font-variant-numeric:tabular-nums;
+}
+.tooltip .tt-x { color:var(--muted); font-size:11px; margin-bottom:5px; }
+.tooltip .tt-row { display:flex; align-items:center; gap:7px; margin:2px 0; }
+.tooltip .tt-key { width:14px; height:3px; border-radius:2px; flex:0 0 auto; }
+.tooltip .tt-name { color:var(--muted); }
+.tooltip .tt-val { margin-left:auto; font-weight:650; }
+.crosshair { stroke:var(--baseline); stroke-width:1; stroke-dasharray:3 3; }
+
+/* zone maps */
+.zonewrap { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:14px; }
+.zonecell { border:1px solid var(--hairline); border-radius:2px; padding:8px 10px 6px; background:var(--plane); position:relative; }
+.zonecell .yr { font-size:13px; font-weight:700; margin-bottom:2px; }
+.zonelegend { display:flex; gap:14px; font-size:12px; color:var(--muted); margin:2px 0 10px; flex-wrap:wrap; }
+.zonelegend span { display:inline-flex; align-items:center; gap:6px; }
+.zonelegend i { width:11px; height:11px; border-radius:2px; display:inline-block; }
+
+/* tables */
+table { border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:7px 12px; border-bottom:1px solid var(--hairline); }
+th { color:var(--faint); font-weight:700; white-space:nowrap; font-size:11px;
+     text-transform:uppercase; letter-spacing:0.1em; }
+th.sortable { cursor:pointer; user-select:none; }
+th.num, td.num { text-align:right; }
+th[aria-sort]:after { content:" \\2195"; color:var(--faint); }
+th[aria-sort="ascending"]:after { content:" \\2191"; color:var(--accent); }
+th[aria-sort="descending"]:after { content:" \\2193"; color:var(--accent); }
+.overflow { overflow-x:auto; }
+
+/* toolbar / buttons - squared, farm-utilitarian, like the site's btn-ghost */
+.toolbar { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+.btn {
+  font-family:var(--font-sans); font-size:11.5px; font-weight:700; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--heading); cursor:pointer;
+  background:none; border:1px solid var(--hairline); border-radius:2px; padding:10px 18px;
+  transition:border-color .15s, background-color .15s;
+}
+.btn:hover { border-color:var(--heading); background:var(--mute-tint); }
+
+.note { color:var(--muted); font-size:13px; margin-top:12px; max-width:72ch; }
+code { background:var(--plane); border:1px solid var(--hairline); padding:1px 5px;
+       border-radius:2px; font-size:12px; }
+"""
+
+# The whole chart engine + page wiring. Palette mirrors the CSS custom props;
+# the 8-slot categorical order is the validated dataviz theme in both modes
+# (years and blocks are identities). Slot 8 (red) is held back for series so
+# it never collides with the critical/freeze red. Zones use the sequential
+# blue ordinal ramp (steps 250/400/600 - legal on both surfaces).
+_JS = r"""
+const DATA = __DATA__;
+const $ = (s, r=document) => r.querySelector(s);
+const el = (t, cls) => { const e = document.createElement(t); if (cls) e.className = cls; return e; };
+const cssVar = n => getComputedStyle(document.body).getPropertyValue(n).trim();
+const NS = "http://www.w3.org/2000/svg";
+const svg = (t, a={}) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+const THEME_LIGHT = ["#2a78d6","#008300","#e87ba4","#eda100","#1baf7a","#eb6834","#4a3aa7"];
+const THEME_DARK  = ["#3987e5","#008300","#d55181","#c98500","#199e70","#d95926","#9085e9"];
+// low -> high vigor: brand vine-green ordinal ramps, validated per surface
+const ZONE_LIGHT = ["#a3ac95","#5b7046","#2e3a2c"];
+const ZONE_DARK  = ["#4b5d3a","#87927a","#c3cdb2"];
+const MONTHS = [[91,"Apr"],[121,"May"],[152,"Jun"],[182,"Jul"],[213,"Aug"],[244,"Sep"],[274,"Oct"],[305,""]];
+const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const mqDark = window.matchMedia("(prefers-color-scheme: dark)");
+const theme = () => mqDark.matches ? THEME_DARK : THEME_LIGHT;
+const zoneRamp = () => mqDark.matches ? ZONE_DARK : ZONE_LIGHT;
+const LY = String(DATA.latest_year);
+
+let state = { block: DATA.blocks[0], hiddenYears: new Set(), hiddenBlocks: new Set() };
+
+const fmt3 = v => v.toFixed(3);
+const fmtDelta = v => (v > 0 ? "+" : "−").concat(Math.abs(v).toFixed(3));
+const fdate = iso => { if (!iso) return "—"; const p = iso.split("-"); return MN[+p[1]-1] + " " + (+p[2]); };
+
+function yearColor(year, blockId) {
+  if (+year === DATA.freeze_year) return cssVar("--critical");
+  const years = Object.keys(DATA.timeseries[blockId || state.block] || {})
+    .filter(y => +y !== DATA.freeze_year).sort();
+  return theme()[years.indexOf(year) % theme().length];
+}
+const blockColor = b => theme()[DATA.blocks.indexOf(b) % theme().length];
+
+/* ---- status vocabulary (icon + label, never color alone) ---- */
+function statusMeta(st) {
+  return {
+    active:        { glyph: "⚠", label: "below baseline", cls: "crit" },
+    flagged:       { glyph: "⚠", label: "flagged, recovered", cls: "warn" },
+    ok:            { glyph: "✓", label: "on track", cls: "good" },
+    "no-baseline": { glyph: "○", label: "building baseline", cls: "mute" },
+  }[st] || { glyph: "○", label: st, cls: "mute" };
+}
+
+/* ---- generic line chart with crosshair + one-tooltip-every-series ---- */
+function lineChart(container, opts) {
+  // opts: { series:[{name,color,points:[[x,y,label],...],width,dash,opacity,hover,
+  //         markers:[[x,y,r,color],...]}], bands:[{pts:[[x,lo,hi]],color}],
+  //         xDomain:[min,max], yDomain:[min,max], height, fmtVal }
+  const W = container.clientWidth || 640, H = opts.height || 240;
+  const m = { t: 10, r: 14, b: 26, l: 40 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const [x0, x1] = opts.xDomain, [y0, y1] = opts.yDomain;
+  const sx = x => m.l + (x - x0) / (x1 - x0) * iw;
+  const sy = y => m.t + (1 - (y - y0) / (y1 - y0)) * ih;
+
+  container.innerHTML = "";
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+
+  // gridlines + ticks
+  const yticks = 4, g = svg("g", { class: "axis" });
+  for (let i = 0; i <= yticks; i++) {
+    const yv = y0 + (y1 - y0) * i / yticks, yy = sy(yv);
+    g.appendChild(svg("line", { class: "gridline", x1: m.l, x2: W - m.r, y1: yy, y2: yy }));
+    const tx = svg("text", { x: m.l - 6, y: yy + 3, "text-anchor": "end" });
+    tx.textContent = (y1 - y0) <= 0.5 ? yv.toFixed(2) : yv.toFixed(1); g.appendChild(tx);
+  }
+  MONTHS.forEach(([d, lab]) => {
+    if (d < x0 || d > x1) return;
+    const xx = sx(d);
+    g.appendChild(svg("line", { class: "gridline", x1: xx, x2: xx, y1: m.t, y2: m.t + ih, opacity: .55 }));
+    if (!lab) return;
+    const tx = svg("text", { x: xx, y: H - 8, "text-anchor": "middle" });
+    tx.textContent = lab; g.appendChild(tx);
+  });
+  s.appendChild(g);
+
+  // baseline bands (behind)
+  (opts.bands || []).forEach(b => {
+    if (b.pts.length < 2) return;
+    let d = "M" + b.pts.map(p => `${sx(p[0])},${sy(p[1])}`).join(" L");
+    for (let i = b.pts.length - 1; i >= 0; i--) d += ` L${sx(b.pts[i][0])},${sy(b.pts[i][2])}`;
+    s.appendChild(svg("path", { d: d + "Z", fill: b.color, stroke: "none" }));
+  });
+
+  // series
+  opts.series.forEach(se => {
+    if (!se.points.length) return;
+    const d = "M" + se.points.map(p => `${sx(p[0])},${sy(p[1])}`).join(" L");
+    const path = svg("path", { d, fill: "none", stroke: se.color,
+      "stroke-width": se.width || 1.6, "stroke-linejoin": "round", "stroke-linecap": "round" });
+    if (se.dash) path.setAttribute("stroke-dasharray", se.dash);
+    if (se.opacity) path.setAttribute("opacity", se.opacity);
+    s.appendChild(path);
+    (se.markers || []).forEach(mk => s.appendChild(svg("circle",
+      { cx: sx(mk[0]), cy: sy(mk[1]), r: mk[2] || 3.5, fill: mk[3] || se.color,
+        stroke: cssVar("--surface"), "stroke-width": 1.5 })));
+  });
+
+  container.appendChild(s);
+
+  // crosshair + tooltip layer
+  const cross = svg("line", { class: "crosshair", y1: m.t, y2: m.t + ih, x1: -9, x2: -9 });
+  s.appendChild(cross);
+  const tip = el("div", "tooltip"); container.appendChild(tip);
+  const hoverSeries = opts.series.filter(se => se.hover !== false && se.points.length);
+  const xs = [...new Set(hoverSeries.flatMap(se => se.points.map(p => p[0])))].sort((a, b) => a - b);
+
+  s.addEventListener("pointermove", ev => {
+    const pt = s.getBoundingClientRect();
+    const px = (ev.clientX - pt.left) / pt.width * W;
+    const xData = x0 + (px - m.l) / iw * (x1 - x0);
+    if (!xs.length) return;
+    let nx = xs[0]; for (const c of xs) if (Math.abs(c - xData) < Math.abs(nx - xData)) nx = c;
+    cross.setAttribute("x1", sx(nx)); cross.setAttribute("x2", sx(nx));
+    tip.innerHTML = ""; let lab = "";
+    const xr = el("div", "tt-x");
+    hoverSeries.forEach(se => {
+      const p = se.points.find(q => q[0] === nx); if (!p) return;
+      if (p[2]) lab = p[2];
+      const row = el("div", "tt-row");
+      const key = el("span", "tt-key"); key.style.background = se.color;
+      const nm = el("span", "tt-name"); nm.textContent = se.name;
+      const vv = el("span", "tt-val"); vv.textContent = (opts.fmtVal ? opts.fmtVal(p[1]) : p[1].toFixed(3));
+      row.append(key, nm, vv); tip.appendChild(row);
+    });
+    xr.textContent = lab || ("day " + nx); tip.insertBefore(xr, tip.firstChild);
+    tip.style.opacity = 1;
+    let tx = sx(nx) / W * pt.width + 14;
+    if (tx + tip.offsetWidth > pt.width) tx = sx(nx) / W * pt.width - tip.offsetWidth - 14;
+    tip.style.left = tx + "px"; tip.style.top = (m.t + 4) + "px";
+  });
+  s.addEventListener("pointerleave", () => { tip.style.opacity = 0; cross.setAttribute("x1", -9); cross.setAttribute("x2", -9); });
+}
+
+/* ---- header: status chip + meta line ---- */
+function renderHeader() {
+  const chip = $("#chip"); chip.textContent = "";
+  const sts = DATA.blocks.map(b => (DATA.status[b] || {}).state);
+  const nLow = sts.filter(s => s === "active" || s === "flagged").length;
+  const judged = sts.filter(s => s && s !== "no-baseline").length;
+  let cls, glyph, text;
+  if (!judged) { cls = "mute"; glyph = "○"; text = "building baselines"; }
+  else if (nLow) { cls = "alert"; glyph = "⚠"; text = nLow + " of " + DATA.blocks.length + " blocks flagged"; }
+  else { cls = "ok"; glyph = "✓"; text = "all blocks on track"; }
+  chip.className = "chip " + cls;
+  const gl = el("span"); gl.textContent = glyph;
+  chip.append(gl, document.createTextNode(text));
+
+  const bits = [];
+  if (DATA.sites) bits.push(DATA.sites + ", South Okanagan");
+  bits.push("Sentinel-2 NDVI/NDRE");
+  if (DATA.latest_obs) bits.push("data to " + DATA.latest_obs);
+  $("#hdr-meta").textContent = bits.join(" · ");
+}
+
+/* ---- block overview cards (also the block switcher) ---- */
+function sparkline(container, b) {
+  const W = 120, H = 38;
+  const bl = (DATA.baseline[b] || {})[LY];
+  const obs = bl ? bl.obs.map(o => [o[0], o[1]]) : ((DATA.timeseries[b] || {})[LY] || []).map(o => [o[0], o[1]]);
+  if (!obs.length) return;
+  const med = bl ? bl.base.map(r => [r[0], r[3]]) : [];
+  const flags = bl ? bl.obs.filter(o => o[3]) : [];
+  const ys = obs.map(p => p[1]).concat(med.map(p => p[1]));
+  const y0 = Math.min(...ys) - 0.04, y1 = Math.max(...ys) + 0.04;
+  const sx = x => (x - 91) / (305 - 91) * W;
+  const sy = y => H - 3 - (y - y0) / ((y1 - y0) || 1) * (H - 6);
+  const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "spark" });
+  s.style.width = W + "px"; s.style.flex = "0 0 auto";
+  if (med.length > 1) s.appendChild(svg("path", {
+    d: "M" + med.map(p => `${sx(p[0])},${sy(p[1])}`).join(" L"),
+    fill: "none", stroke: cssVar("--baseline"), "stroke-width": 1.2 }));
+  s.appendChild(svg("path", {
+    d: "M" + obs.map(p => `${sx(p[0])},${sy(p[1])}`).join(" L"),
+    fill: "none", stroke: cssVar("--accent"), "stroke-width": 1.6,
+    "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  flags.forEach(o => s.appendChild(svg("circle",
+    { cx: sx(o[0]), cy: sy(o[1]), r: 2.1, fill: cssVar("--critical") })));
+  container.appendChild(s);
+}
+
+function renderCards() {
+  const wrap = $("#cards"); wrap.innerHTML = "";
+  DATA.blocks.forEach(b => {
+    const k = DATA.kpis[b] || {}, st = DATA.status[b] || { state: "no-baseline" };
+    const card = el("button", "card");
+    card.setAttribute("aria-pressed", b === state.block ? "true" : "false");
+
+    const top = el("div", "toprow");
+    const nm = el("span", "name"); nm.textContent = b;
+    const sm = statusMeta(st.state);
+    const pill = el("span", "pill " + sm.cls); pill.textContent = sm.glyph + " " + sm.label;
+    top.append(nm, pill);
+
+    const sub = el("div", "subline");
+    sub.textContent = [k.variety, k.site, k.planting_year ? "planted " + k.planting_year : null]
+      .filter(Boolean).join(" · ");
+
+    const bottom = el("div", "bottomrow");
+    const left = el("div");
+    const big = el("div", "big");
+    big.textContent = k.latest_ndvi === null || k.latest_ndvi === undefined ? "—" : fmt3(k.latest_ndvi);
+    const u = el("span", "u"); u.textContent = "NDVI"; big.appendChild(u);
+    const dl = el("div", "deltaline");
+    if (k.latest_delta !== null && k.latest_delta !== undefined) {
+      const d = el("span", k.latest_delta < 0 ? "down" : "up");
+      d.textContent = fmtDelta(k.latest_delta);
+      dl.append(d, document.createTextNode(" vs baseline · " + fdate(k.latest_date)));
+    } else dl.textContent = fdate(k.latest_date);
+    left.append(big, dl);
+    bottom.appendChild(left);
+    sparkline(bottom, b);
+
+    card.append(top, sub, bottom);
+    card.onclick = () => { state.block = b; state.hiddenYears = new Set(); renderAll(); };
+    wrap.appendChild(card);
+  });
+}
+
+/* ---- season triage: reading, active flags, stress log ---- */
+function renderTriage() {
+  const sec = $("#triage");
+  const anyJudged = DATA.blocks.some(b => (DATA.status[b] || {}).state !== "no-baseline");
+  if (!anyJudged && !DATA.events.length) { sec.style.display = "none"; return; }
+  sec.style.display = "";
+  const lowNow = DATA.blocks.filter(b => ["active", "flagged"].includes((DATA.status[b] || {}).state));
+  sec.classList.toggle("alert", lowNow.length > 0);
+
+  $("#reading").textContent = DATA.reading || "";
+
+  const fl = $("#flaglines"); fl.innerHTML = "";
+  lowNow.forEach(b => {
+    const st = DATA.status[b];
+    const line = el("div", "flagline");
+    const gl = el("span", "glyph"); gl.textContent = "⚠";
+    const nm = el("b"); nm.textContent = b;
+    const det = el("span", "detail");
+    let t = st.n_low + " low readings, " + fdate(st.first_low) + " – " + fdate(st.last_low)
+      + ", season-low NDVI " + fmt3(st.min_ndvi);
+    t += st.state === "active" ? " · still below as of " + fdate(st.last_obs)
+                               : " · recovered by " + fdate(st.last_obs);
+    det.textContent = t;
+    line.append(gl, nm, det);
+    fl.appendChild(line);
+  });
+
+  const tbl = $("#evt-table"); tbl.innerHTML = "";
+  if (!DATA.events.length) { $("#evt-wrap").style.display = "none"; return; }
+  $("#evt-wrap").style.display = "";
+  const cols = ["year", "block", "first low", "last low", "low readings", "season-low NDVI"];
+  const thead = el("thead"), htr = el("tr");
+  cols.forEach((c, i) => { const th = el("th" ); if (i > 3) th.className = "num"; th.textContent = c; htr.appendChild(th); });
+  thead.appendChild(htr); tbl.appendChild(thead);
+  const tb = el("tbody");
+  [...DATA.events].sort((a, b) => b.year - a.year || (a.block_id < b.block_id ? -1 : 1)).forEach(e => {
+    const tr = el("tr");
+    [e.year, e.block_id, e.first_low, e.last_low, e.n_low, fmt3(e.min_ndvi)].forEach((v, i) => {
+      const td = el("td"); if (i > 3) td.className = "num"; td.textContent = v; tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+}
+
+/* ---- KPI tiles ---- */
+function renderKpis() {
+  const k = DATA.kpis[state.block] || {}, st = DATA.status[state.block] || {};
+  const row = $("#kpis"); row.innerHTML = "";
+  const tile = (label, value, cls) => {
+    const t = el("div", "kpi" + (cls ? " " + cls : ""));
+    const l = el("div", "label"); l.textContent = label;
+    const v = el("div", "value");
+    v.textContent = (value === null || value === undefined) ? "—" : value;
+    const s2 = el("div", "sub2");
+    t.append(l, v, s2); row.appendChild(t); return s2;
+  };
+  const colored = (target, val, text, goodWhenNegative) => {
+    const sp = el("span", (goodWhenNegative ? val <= 0 : val >= 0) ? "up" : "down");
+    sp.textContent = text; target.appendChild(sp);
+  };
+
+  let s2 = tile("Latest NDVI", k.latest_ndvi === null ? null : fmt3(k.latest_ndvi));
+  s2.textContent = fdate(k.latest_date) + (k.latest_delta !== null && k.latest_delta !== undefined ? " · " : "");
+  if (k.latest_delta !== null && k.latest_delta !== undefined)
+    colored(s2, k.latest_delta, fmtDelta(k.latest_delta) + " vs baseline", false);
+
+  s2 = tile("Latest NDRE", k.latest_ndre === null ? null : fmt3(k.latest_ndre));
+  s2.textContent = "canopy chlorophyll · 20 m";
+
+  s2 = tile(DATA.latest_year + " peak so far", k.peak_ndvi === null ? null : fmt3(k.peak_ndvi));
+  s2.textContent = k.peak_typical !== null && k.peak_typical !== undefined
+    ? "typical full-season peak " + fmt3(k.peak_typical) : "no baseline seasons yet";
+
+  s2 = tile("Green-up", fdate(k.greenup_date));
+  if (k.greenup_delta_days !== null && k.greenup_delta_days !== undefined) {
+    const d = k.greenup_delta_days;
+    colored(s2, d, d === 0 ? "on typical schedule"
+      : Math.abs(d) + " days " + (d > 0 ? "later" : "earlier") + " than typical", true);
+  } else s2.textContent = "first leaf detected in NDVI";
+
+  const sm = statusMeta(st.state || "no-baseline");
+  s2 = tile("Low-vigor readings", k.active_alerts,
+    k.active_alerts ? "alert" : (st.state === "ok" ? "ok" : ""));
+  s2.textContent = "this season · " + sm.label;
+}
+
+/* ---- season curves: NDVI + NDRE share one year legend ---- */
+function yearLabel(y) {
+  if (+y === DATA.freeze_year) return y + " (freeze)";
+  if (y === LY) return y + " (this season)";
+  return y;
+}
+
+function renderCurves() {
+  const seasons = DATA.timeseries[state.block] || {};
+  const years = Object.keys(seasons).sort();
+  const lg = $("#year-legend"); lg.innerHTML = "";
+  years.forEach(y => {
+    const b = el("button"); b.setAttribute("aria-pressed", state.hiddenYears.has(y) ? "false" : "true");
+    const sw = el("span", "swatch"); sw.style.background = yearColor(y);
+    b.append(sw, document.createTextNode(yearLabel(y)));
+    b.onclick = () => { state.hiddenYears.has(y) ? state.hiddenYears.delete(y) : state.hiddenYears.add(y); renderCurves(); };
+    lg.appendChild(b);
+  });
+  const mkSeries = (source) => years
+    .filter(y => !state.hiddenYears.has(y) && (source[y] || []).length)
+    .map(y => ({
+      name: y, color: yearColor(y), points: source[y],
+      width: (+y === DATA.freeze_year || y === LY) ? 2.3 : 1.4,
+      opacity: (+y === DATA.freeze_year || y === LY) ? 1 : 0.85,
+    }));
+  lineChart($("#overlay-chart"), {
+    series: mkSeries(seasons), xDomain: [91, 305], yDomain: [0, 1], height: 300,
+    fmtVal: fmt3,
+  });
+  const ndre = DATA.ndre[state.block] || {};
+  const vals = Object.values(ndre).flat().map(p => p[1]);
+  const yMax = vals.length ? Math.min(1, Math.ceil((Math.max(...vals) + 0.05) * 10) / 10) : 0.6;
+  lineChart($("#ndre-chart"), {
+    series: mkSeries(ndre), xDomain: [91, 305], yDomain: [0, yMax], height: 210,
+    fmtVal: fmt3,
+  });
+}
+
+/* ---- current season vs baseline ---- */
+function renderBaseline() {
+  const wrap = $("#baseline-chart"), title = $("#baseline-title"), lg = $("#baseline-legend");
+  const byYear = (DATA.baseline[state.block]) || {};
+  const years = Object.keys(byYear).filter(y => byYear[y].base.length).sort();
+  if (!years.length) { wrap.innerHTML = ""; lg.innerHTML = ""; title.textContent = "no baseline yet (needs prior vine seasons)"; return; }
+  const yr = years[years.length - 1];
+  title.textContent = yr + " season vs prior-season baseline";
+  const a = byYear[yr];
+  const bandPts = a.base.map(b => [b[0], b[2], b[4]]);        // p25..p75
+  const p10 = a.base.map(b => [b[0], b[1]]);
+  const med = a.base.map(b => [b[0], b[3]]);
+  const obs = a.obs.map(o => [o[0], o[1], o[2]]);
+  const markers = a.obs.filter(o => o[3]).map(o => [o[0], o[1], 4, cssVar("--critical")]);
+  if (a.obs.length) {
+    const lastO = a.obs[a.obs.length - 1];
+    if (!lastO[3]) markers.push([lastO[0], lastO[1], 4]);
+  }
+  lineChart(wrap, {
+    height: 260, xDomain: [91, 305], yDomain: [0, 1], fmtVal: fmt3,
+    bands: [{ pts: bandPts, color: cssVar("--band") }],
+    series: [
+      { name: "baseline median", color: cssVar("--faint"), points: med, width: 1.2, hover: false },
+      { name: "10th pct", color: cssVar("--warn"), points: p10, width: 1.2, dash: "5 4", hover: false },
+      { name: state.block + " " + yr, color: cssVar("--accent"), points: obs, width: 1.8, markers },
+    ],
+  });
+  // static legend (identity is never hover-gated)
+  lg.innerHTML = "";
+  const item = (mk, label) => { const it = el("span", "item"); it.append(mk, document.createTextNode(label)); lg.appendChild(it); };
+  const band = el("span", "bandswatch"); band.style.background = cssVar("--band");
+  item(band, "prior-season IQR");
+  const medSw = el("span", "swatch"); medSw.style.background = cssVar("--faint");
+  item(medSw, "baseline median");
+  const pSw = el("span", "swatch"); pSw.style.background = cssVar("--warn");
+  item(pSw, "10th percentile");
+  const oSw = el("span", "swatch"); oSw.style.background = cssVar("--accent");
+  item(oSw, "this season");
+  const fSw = el("span", "dotswatch"); fSw.style.background = cssVar("--critical");
+  item(fSw, "flagged reading");
+}
+
+/* ---- this season across blocks ---- */
+function renderCompare() {
+  const sec = $("#cmp-section");
+  const withData = DATA.blocks.filter(b => ((DATA.timeseries[b] || {})[LY] || []).length);
+  if (withData.length < 2) { sec.style.display = "none"; return; }
+  sec.style.display = "";
+  const lg = $("#cmp-legend"); lg.innerHTML = "";
+  withData.forEach(b => {
+    const btn = el("button"); btn.setAttribute("aria-pressed", state.hiddenBlocks.has(b) ? "false" : "true");
+    const sw = el("span", "swatch"); sw.style.background = blockColor(b);
+    const k = DATA.kpis[b] || {};
+    btn.append(sw, document.createTextNode(b + (k.variety ? " · " + k.variety : "")));
+    btn.onclick = () => { state.hiddenBlocks.has(b) ? state.hiddenBlocks.delete(b) : state.hiddenBlocks.add(b); renderCompare(); };
+    lg.appendChild(btn);
+  });
+  const series = withData.filter(b => !state.hiddenBlocks.has(b)).map(b => ({
+    name: b, color: blockColor(b), points: DATA.timeseries[b][LY], width: 1.8,
+  }));
+  lineChart($("#cmp-chart"), {
+    series, xDomain: [91, 305], yDomain: [0, 1], height: 240, fmtVal: fmt3,
+  });
+}
+
+/* ---- zone maps (real outline, aspect-true, 10 m raster squares) ---- */
+function renderZones() {
+  const ramp = zoneRamp();
+  const lg = $("#zone-legend"); lg.innerHTML = "";
+  ["low vigor", "medium", "high vigor"].forEach((lab, i) => {
+    const it = el("span"); const sw = el("i"); sw.style.background = ramp[i];
+    it.append(sw, document.createTextNode(lab)); lg.appendChild(it);
+  });
+  const wrap = $("#zone-wrap"); wrap.innerHTML = "";
+  const byYear = (DATA.zones[state.block]) || {};
+  const years = Object.keys(byYear).sort();
+  if (!years.length) { wrap.textContent = "No zone data for this block."; return; }
+  const rings = DATA.outlines[state.block] || [];
+
+  // shared bbox across years so cells align
+  let xs = [], ys = [];
+  years.forEach(yr => byYear[yr].forEach(p => { xs.push(p[0]); ys.push(p[1]); }));
+  rings.forEach(r => r.forEach(p => { xs.push(p[0]); ys.push(p[1]); }));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const latMid = (y0 + y1) / 2, cosf = Math.cos(latMid * Math.PI / 180);
+  const W = 220, pad = 12;
+  const spanX = ((x1 - x0) || 1e-6) * 111320 * cosf, spanY = ((y1 - y0) || 1e-6) * 110540;
+  const H = Math.max(90, Math.min(240, Math.round((W - 2 * pad) * spanY / spanX) + 2 * pad));
+  const sxD = (W - 2 * pad) / ((x1 - x0) || 1e-6), syD = (H - 2 * pad) / ((y1 - y0) || 1e-6);
+  const sx = x => pad + (x - x0) * sxD;
+  const sy = y => H - pad - (y - y0) * syD;
+  const pw = 10 / (111320 * cosf) * sxD * 0.9, ph = 10 / 110540 * syD * 0.9;
+
+  years.forEach(yr => {
+    const pts = byYear[yr];
+    const cell = el("div", "zonecell");
+    const hd = el("div", "yr"); hd.textContent = yr; cell.appendChild(hd);
+    const s = svg("svg", { viewBox: `0 0 ${W} ${H}` });
+    const tip = el("div", "tooltip");
+    rings.forEach(r => {
+      const d = "M" + r.map(p => `${sx(p[0])},${sy(p[1])}`).join(" L") + "Z";
+      s.appendChild(svg("path", { d, fill: "none", stroke: cssVar("--baseline"), "stroke-width": 1.2 }));
+    });
+    pts.forEach(p => {
+      const r = svg("rect", { x: sx(p[0]) - pw / 2, y: sy(p[1]) - ph / 2, width: pw, height: ph,
+        rx: 1, fill: ramp[p[2]] || ramp[0] });
+      r.addEventListener("pointerenter", ev => {
+        tip.innerHTML = "";
+        const zr = el("div", "tt-row"); const zn = el("span", "tt-name");
+        zn.textContent = ["low vigor", "medium vigor", "high vigor"][p[2]] || ("zone " + p[2]);
+        const zv = el("span", "tt-val"); zv.textContent = p[3].toFixed(3);
+        zr.append(zn, zv); tip.appendChild(zr);
+        tip.style.opacity = 1;
+        const rc = cell.getBoundingClientRect();
+        tip.style.left = (ev.clientX - rc.left + 10) + "px"; tip.style.top = (ev.clientY - rc.top + 8) + "px";
+      });
+      r.addEventListener("pointerleave", () => tip.style.opacity = 0);
+      s.appendChild(r);
+    });
+    cell.appendChild(s); cell.appendChild(tip); wrap.appendChild(cell);
+  });
+}
+
+/* ---- features table (sortable) ---- */
+let sortState = { key: "year", dir: 1 };
+function renderTable() {
+  const rows = DATA.features.filter(r => r.block_id === state.block);
+  const cols = [["year", "year", 0], ["peak_ndvi", "peak NDVI", 1], ["peak_doy", "peak DOY", 1],
+    ["integral_may_sep", "May–Sep integral", 1], ["greenup_date", "green-up", 0]];
+  const tbl = $("#feat-table"); tbl.innerHTML = "";
+  const thead = el("thead"), htr = el("tr");
+  cols.forEach(([key, label, num]) => {
+    const th = el("th", "sortable" + (num ? " num" : "")); th.textContent = label;
+    if (sortState.key === key) th.setAttribute("aria-sort", sortState.dir === 1 ? "ascending" : "descending");
+    th.onclick = () => { sortState = { key, dir: sortState.key === key ? -sortState.dir : 1 }; renderTable(); };
+    htr.appendChild(th);
+  });
+  thead.appendChild(htr); tbl.appendChild(thead);
+  rows.sort((a, b) => {
+    const va = a[sortState.key], vb = b[sortState.key];
+    if (va === null) return 1; if (vb === null) return -1;
+    return (va > vb ? 1 : va < vb ? -1 : 0) * sortState.dir;
+  });
+  const tb = el("tbody");
+  rows.forEach(r => {
+    const tr = el("tr");
+    [[r.year, 0, 0], [r.peak_ndvi, 1, 3], [r.peak_doy, 1, 0], [r.integral_may_sep, 1, 1], [r.greenup_date, 0, 0]].forEach(([v, num, dp]) => {
+      const td = el("td", num ? "num" : null);
+      td.textContent = (v === null || v === undefined) ? "—" : (dp && typeof v === "number" ? v.toFixed(dp) : v);
+      tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+}
+
+/* ---- CSV export ---- */
+function toCsv(rows, cols) {
+  const esc = v => { v = v === null || v === undefined ? "" : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  return cols.join(",") + "\n" + rows.map(r => cols.map(c => esc(r[c])).join(",")).join("\n") + "\n";
+}
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+  const a = el("a"); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function wireDownloads() {
+  $("#dl-features").onclick = () => download("season_features.csv",
+    toCsv(DATA.features, ["block_id", "year", "peak_ndvi", "peak_doy", "integral_may_sep", "greenup_date"]));
+  const fb = $("#dl-flags");
+  if (!DATA.flags.length) fb.style.display = "none";
+  else fb.onclick = () => download("flagged_observations.csv",
+    toCsv(DATA.flags, ["block_id", "date", "year", "ndvi", "base_p10", "base_median"]));
+}
+
+function renderAll() {
+  renderCards(); renderTriage(); renderKpis(); renderCurves();
+  renderBaseline(); renderCompare(); renderZones(); renderTable();
+}
+renderHeader(); wireDownloads(); renderAll();
+window.addEventListener("resize", () => { renderCurves(); renderBaseline(); renderCompare(); });
+if (mqDark.addEventListener) mqDark.addEventListener("change", () => { renderHeader(); renderAll(); });
+"""
+
+_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Vineyard Vigor Dashboard</title>
+<style>__CSS__</style>
+</head>
+<body>
+<header>
+  <div class="brandbar">
+    <a class="wordmark" href="/">
+      <span class="wm-name">H.B. Bro&rsquo;s</span>
+      <span class="wm-sub">Vineyards</span>
+    </a>
+    <a class="backlink" href="/">&larr; Back to the site</a>
+  </div>
+  <div class="masthead">
+    <div>
+      <div class="eyebrow">Field data &middot; Vineyard Vigor Dashboard</div>
+      <h1>How the blocks are growing</h1>
+      <div class="meta" id="hdr-meta"></div>
+    </div>
+    <span class="chip" id="chip"></span>
+  </div>
+</header>
+<main>
+  <div class="cards" id="cards"></div>
+
+  <section class="banner" id="triage">
+    <h2>This season</h2>
+    <div class="caption">A block is flagged when two consecutive readings sit under the
+      10th percentile of its own prior seasons at that time of year.</div>
+    <p class="reading" id="reading"></p>
+    <div id="flaglines"></div>
+    <div id="evt-wrap">
+      <h3>Stress log <span class="sub">every below-baseline run on record</span></h3>
+      <div class="overflow"><table id="evt-table"></table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>At a glance</h2>
+    <div class="caption">Latest reading and this season&rsquo;s headline numbers for the selected block.</div>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section>
+    <h2>Season curves</h2>
+    <div class="caption">Every season on a shared April&ndash;October axis, outlier-screened and
+      smoothed (Savitzky&ndash;Golay) so residual cloud and smoke spikes don&rsquo;t read as vine
+      stress. Toggle years in the legend (it drives both charts); hover for values and dates.
+      The freeze year is red; exact scene readings live in the baseline chart and the CSVs.</div>
+    <div class="legend" id="year-legend"></div>
+    <h3>NDVI <span class="sub">vine vigor &middot; 10 m</span></h3>
+    <div class="chart" id="overlay-chart"></div>
+    <h3>NDRE <span class="sub">canopy chlorophyll &middot; 20 m &middot; watch for late-season nutrient stress</span></h3>
+    <div class="chart" id="ndre-chart"></div>
+  </section>
+
+  <section>
+    <h2>Current season vs baseline <span class="sub" id="baseline-title"></span></h2>
+    <div class="caption">The latest season against its own prior-season, day-of-year baseline.
+      Red dots mark flagged (two-in-a-row below the 10th percentile) readings.</div>
+    <div class="legend" id="baseline-legend"></div>
+    <div class="chart" id="baseline-chart"></div>
+  </section>
+
+  <section id="cmp-section">
+    <h2>This season across blocks</h2>
+    <div class="caption">All blocks together, smoothed like the season curves: if every curve dips
+      at once the cause is shared (weather, heat, smoke); one curve dipping alone points at that
+      block (irrigation, virus, damage).</div>
+    <div class="legend" id="cmp-legend"></div>
+    <div class="chart" id="cmp-chart"></div>
+  </section>
+
+  <section>
+    <h2>Vigor zones by season</h2>
+    <div class="caption">Within-block zones on the real block outline, one square per
+      10&nbsp;m pixel. Zones that hold their shape across years read as soil or rootstock;
+      one-off zones read as management, irrigation, or damage. Hover a pixel for its
+      season-mean NDVI.</div>
+    <div class="zonelegend" id="zone-legend"></div>
+    <div class="zonewrap" id="zone-wrap"></div>
+  </section>
+
+  <section>
+    <h2>Season features</h2>
+    <div class="caption">Peak NDVI, its day of year, the May&ndash;September integral (NDVI&middot;days),
+      and green-up date. Click a header to sort.</div>
+    <div class="overflow"><table id="feat-table"></table></div>
+    <div class="toolbar">
+      <button class="btn" id="dl-features">Download features CSV</button>
+      <button class="btn" id="dl-flags">Download flagged readings CSV</button>
+    </div>
+    <p class="note">Blocks planted in 2024, so seasons before then reflect the previous ground cover;
+      baselines and &ldquo;typical&rdquo; comparisons respect each block&rsquo;s <code>baseline_start</code>.
+      Read early-season flags as provisional until more vine history accrues.</p>
+  </section>
+</main>
+<footer>Sentinel-2 L2A (harmonized) &middot; Cloud Score+ mask (cs_cdf &ge; 0.60) &middot;
+  observations with &ge;80% clear pixels &middot; NDVI 10 m, NDRE 20 m &middot; generated __GENERATED__</footer>
+<script>__JS__</script>
+</body>
+</html>
+"""
+
+
+def render_page(data_json: str) -> str:
+    from datetime import datetime
+    js = _JS.replace("__DATA__", data_json.replace("</", "<\\/"))
+    return (
+        _TEMPLATE
+        .replace("__CSS__", _CSS)
+        .replace("__JS__", js)
+        .replace("__GENERATED__", datetime.now().strftime("%Y-%m-%d %H:%M"))
+    )

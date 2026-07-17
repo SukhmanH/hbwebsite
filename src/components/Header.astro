@@ -1,0 +1,96 @@
+---
+const links = [
+  { href: '/about', label: 'About Us' },
+  { href: '/vineyards', label: 'The Vineyards' },
+  { href: '/vigor/', label: 'Vigor Data' },
+  { href: '/contact', label: 'Contact' },
+];
+
+const current = Astro.url.pathname;
+const isActive = (href: string) =>
+  current === href || current === `${href}/`;
+---
+
+<header class="sticky top-0 z-40 border-b rule bg-bone-100/95 backdrop-blur-sm">
+  <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+    <a href="/" class="group flex items-baseline gap-2">
+      <span
+        class="font-display text-2xl font-semibold tracking-tight text-vine-900"
+        style="font-variation-settings: 'opsz' 60, 'SOFT' 40;"
+      >
+        H.B. Bro&rsquo;s
+      </span>
+      <span class="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-olive-500">
+        Vineyards
+      </span>
+    </a>
+
+    <nav aria-label="Main" class="hidden items-center gap-8 sm:flex">
+      {
+        links.map(({ href, label }) => (
+          <a
+            href={href}
+            aria-current={isActive(href) ? 'page' : undefined}
+            class:list={[
+              'text-[0.8rem] font-bold uppercase tracking-[0.16em] transition-colors',
+              isActive(href)
+                ? 'text-clay-500'
+                : 'text-ink-700 hover:text-clay-500',
+            ]}
+          >
+            {label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <button
+      id="menu-toggle"
+      type="button"
+      class="flex h-10 w-10 items-center justify-center text-vine-900 sm:hidden"
+      aria-expanded="false"
+      aria-controls="mobile-menu"
+      aria-label="Open menu"
+    >
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+        <path class="menu-open" d="M2 5h18M2 11h18M2 17h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        <path class="menu-close hidden" d="M4 4l14 14M18 4L4 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+    </button>
+  </div>
+
+  <nav id="mobile-menu" aria-label="Mobile" class="hidden border-t rule sm:hidden">
+    <ul class="flex flex-col px-5 py-3">
+      {
+        links.map(({ href, label }) => (
+          <li>
+            <a
+              href={href}
+              aria-current={isActive(href) ? 'page' : undefined}
+              class:list={[
+                'block py-3 text-[0.85rem] font-bold uppercase tracking-[0.16em]',
+                isActive(href) ? 'text-clay-500' : 'text-ink-700',
+              ]}
+            >
+              {label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+</header>
+
+<script>
+  const toggle = document.getElementById('menu-toggle');
+  const menu = document.getElementById('mobile-menu');
+
+  toggle?.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!open));
+    toggle.setAttribute('aria-label', open ? 'Open menu' : 'Close menu');
+    menu?.classList.toggle('hidden', open);
+    toggle.querySelector('.menu-open')?.classList.toggle('hidden', !open);
+    toggle.querySelector('.menu-close')?.classList.toggle('hidden', open);
+  });
+</script>

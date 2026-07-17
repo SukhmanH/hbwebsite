@@ -1,0 +1,66 @@
+---
+/**
+ * Full-bleed hero — a layered sketch of South Okanagan benchland at last
+ * light: dusty gold sky, lake sliver, sage hills stepping down to vine rows.
+ * Replace the composition with a real landscape photograph when one exists;
+ * the gradient overlay at the base should stay for text legibility.
+ */
+---
+
+<section class="grain relative flex min-h-[92svh] flex-col overflow-hidden bg-gradient-to-b from-bone-100 via-gold-300 to-gold-400">
+  <!-- landscape layers -->
+  <div class="pointer-events-none absolute inset-x-0 bottom-0" aria-hidden="true">
+    <svg
+      class="block h-[46vh] min-h-[280px] w-full"
+      viewBox="0 0 1440 480"
+      preserveAspectRatio="xMidYMax slice"
+      fill="none"
+    >
+      <!-- far hills, hazy -->
+      <path
+        d="M0 210 Q 180 150 360 190 T 720 170 T 1080 200 T 1440 160 V 480 H 0 Z"
+        fill="#87927a"
+        opacity="0.55"
+      />
+      <!-- lake sliver catching the light -->
+      <path d="M0 252 H 1440 V 292 H 0 Z" fill="#dcbd6f" opacity="0.8" />
+      <!-- mid bench -->
+      <path
+        d="M0 300 Q 240 250 480 285 T 900 270 T 1440 295 V 480 H 0 Z"
+        fill="#4b5d3a"
+      />
+      <!-- near bench, deep shadow -->
+      <path
+        d="M0 390 Q 320 330 640 372 T 1200 355 Q 1330 348 1440 368 V 480 H 0 Z"
+        fill="#2e3a2c"
+      />
+    </svg>
+    <!-- vine rows raking across the near bench -->
+    <div
+      class="absolute inset-x-0 bottom-0 h-[22vh] min-h-[130px]"
+      style="background-image: repeating-linear-gradient(99deg, transparent 0 34px, rgba(220,189,111,0.14) 34px 37px); mask-image: linear-gradient(180deg, transparent, black 55%);"
+    >
+    </div>
+    <!-- settle the base so header/hero text always reads -->
+    <div class="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-vine-950/60 to-transparent"></div>
+  </div>
+
+  <!-- copy -->
+  <div class="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-5 pb-[40vh] pt-16 sm:px-8 sm:pb-[34vh]">
+    <p class="eyebrow hero-rise" style="--rise-delay: 100ms; color: #9a4523;">
+      Naramata &rarr; Oliver &middot; South Okanagan, BC
+    </p>
+    <h1 class="display-xl hero-rise mt-5 max-w-3xl" style="--rise-delay: 220ms;">
+      Grown in the valley.<br />Raised by family.
+    </h1>
+    <p class="hero-rise mt-6 max-w-xl text-lg leading-relaxed text-ink-700" style="--rise-delay: 340ms;">
+      H.B. Bro&rsquo;s Vineyards is a family-owned and operated grape-growing
+      operation with vineyard sites running the length of the South Okanagan
+      &mdash; from the Naramata Bench down to the sagebrush country of Oliver.
+    </p>
+    <div class="hero-rise mt-9 flex flex-wrap gap-4" style="--rise-delay: 460ms;">
+      <a href="/vineyards" class="btn btn-clay">See the vineyards</a>
+      <a href="/contact" class="btn btn-ghost">Get in touch</a>
+    </div>
+  </div>
+</section>

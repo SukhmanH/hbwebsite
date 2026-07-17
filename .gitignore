@@ -1,0 +1,15 @@
+﻿# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# environment
+.env
+.env.production
+
+# os / editor
+.DS_Store
+Thumbs.db
+vineyard-vigor/notebooks/oracleJdk-26/

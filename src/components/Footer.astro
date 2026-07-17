@@ -1,0 +1,47 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="bg-vine-950 text-bone-200">
+  <div class="mx-auto max-w-6xl px-5 py-14 sm:px-8">
+    <div class="grid gap-10 sm:grid-cols-3">
+      <div>
+        <p class="font-display text-2xl font-semibold text-bone-50" style="font-variation-settings: 'opsz' 60, 'SOFT' 40;">
+          H.B. Bro&rsquo;s Vineyards
+        </p>
+        <p class="mt-3 max-w-xs text-sm leading-relaxed text-olive-300">
+          Family-owned and operated. Growing wine grapes on benchland from
+          Naramata to Oliver in the South Okanagan, British Columbia.
+        </p>
+      </div>
+
+      <div>
+        <p class="eyebrow eyebrow--light">Find your way</p>
+        <ul class="mt-4 flex flex-col gap-2 text-sm">
+          <li><a href="/" class="transition-colors hover:text-gold-300">Home</a></li>
+          <li><a href="/about" class="transition-colors hover:text-gold-300">About Us</a></li>
+          <li><a href="/vineyards" class="transition-colors hover:text-gold-300">The Vineyards</a></li>
+          <li><a href="/contact" class="transition-colors hover:text-gold-300">Contact</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="eyebrow eyebrow--light">Get in touch</p>
+        <ul class="mt-4 flex flex-col gap-2 text-sm">
+          <li>
+            <a href="mailto:info@hbbrosvineyards.com" class="transition-colors hover:text-gold-300">
+              info@hbbrosvineyards.com
+            </a>
+          </li>
+          <li class="text-olive-300">Oliver, British Columbia</li>
+          <li class="text-olive-300">Okanagan Valley, Canada</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-12 flex flex-col gap-2 border-t border-bone-100/10 pt-6 text-xs text-olive-300 sm:flex-row sm:items-center sm:justify-between">
+      <p>&copy; {year} H.B. Bro&rsquo;s Vineyards. All rights reserved.</p>
+      <p>Grown in the South Okanagan &middot; Sold to wineries across the valley</p>
+    </div>
+  </div>
+</footer>
