@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview"
+    "sync:dashboard": "node scripts/sync-dashboard.mjs",
+    "dev": "npm run sync:dashboard && astro dev",
+    "build": "npm run sync:dashboard && astro build",
+    "preview": "npm run sync:dashboard && astro preview"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.5",
