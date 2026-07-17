@@ -5,14 +5,21 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = resolve(__dirname, '..');
-const sourceFile = resolve(rootDir, 'vineyard-vigor/outputs/dashboard/index.html');
 const targetFile = resolve(rootDir, 'public/vigor/index.html');
+const sourceCandidates = [
+  resolve(rootDir, 'vineyard-vigor/outputs/dashboard/index.html'),
+  targetFile,
+];
 
-if (!existsSync(sourceFile)) {
-  console.error(`Dashboard build not found at ${sourceFile}`);
+const sourceFile = sourceCandidates.find((candidate) => existsSync(candidate));
+
+if (!sourceFile) {
+  console.error('Dashboard build not found and no fallback page is available.');
   process.exit(1);
 }
 
 mkdirSync(dirname(targetFile), { recursive: true });
-copyFileSync(sourceFile, targetFile);
+if (sourceFile !== targetFile) {
+  copyFileSync(sourceFile, targetFile);
+}
 console.log(`Synced dashboard to ${targetFile}`);
