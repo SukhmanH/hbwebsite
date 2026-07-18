@@ -99,6 +99,24 @@ def refresh_timeseries() -> None:
     n_new = int((fresh["date"] > prev_max).sum())
     log(f"timeseries: {len(merged)} rows total, {n_new} observations newer than {prev_max:%Y-%m-%d}")
 
+    # Landsat long-term history: same incremental splice, 16-day revisit so
+    # many weeks add nothing. Created by scripts/backfill_landsat.py; skipped
+    # here until that has run once.
+    ls_path = PROCESSED / "landsat_timeseries.parquet"
+    if ls_path.exists():
+        ls_old = ingest.load_timeseries(ls_path)
+        ls_start = (ls_old["date"].max() - pd.Timedelta(days=16)).date().isoformat()
+        ls_raw = extract.fetch_table(extract.landsat_timeseries_table(gdf, start_date=ls_start))
+        if len(ls_raw):
+            ls_fresh = ingest.raw_to_timeseries(ls_raw)
+            ls_merged = pd.concat(
+                [ls_old[ls_old["date"] < pd.Timestamp(ls_start)], ls_fresh], ignore_index=True
+            ).sort_values(["block_id", "date", "scene_id"]).reset_index(drop=True)
+            ingest.write_timeseries(ls_merged, ls_path)
+            log(f"landsat: {len(ls_merged)} rows total after refresh from {ls_start}")
+        else:
+            log("landsat: no new scenes in the window")
+
 
 def refresh_zones_if_season_done(ts: pd.DataFrame) -> None:
     """Zone any fully-ended season that isn't in the zones parquet yet.
@@ -156,6 +174,15 @@ def refresh_derived(with_ee: bool) -> None:
 
     if with_ee:
         refresh_zones_if_season_done(ts)
+
+    # ML layer: season outlook (GP projection) + analog seasons. Offline.
+    from vigor import ml
+
+    band, summary = ml.season_outlook(ts, baseline_start=bs)
+    an = ml.analog_seasons(ts)
+    ml.write_outlook(band, summary, an, PROCESSED)
+    log(f"ml: outlook for {summary['block_id'].nunique() if len(summary) else 0} blocks, "
+        f"{len(an)} analog rankings")
 
 
 def rebuild_dashboard() -> None:

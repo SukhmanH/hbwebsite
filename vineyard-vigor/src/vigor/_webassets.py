@@ -289,10 +289,14 @@ const fmt3 = v => v.toFixed(3);
 const fmtDelta = v => (v > 0 ? "+" : "−").concat(Math.abs(v).toFixed(3));
 const fdate = iso => { if (!iso) return "—"; const p = iso.split("-"); return MN[+p[1]-1] + " " + (+p[2]); };
 
+const HIST_FLOOR = DATA.history_floor || 2019;
 function yearColor(year, blockId) {
   if (+year === DATA.freeze_year) return cssVar("--critical");
+  // Pre-floor seasons (thin archive, previous ground cover) are gray context;
+  // identity hues stay reserved for the seasons that can hold a palette slot.
+  if (+year < HIST_FLOOR) return cssVar("--baseline");
   const years = Object.keys(DATA.timeseries[blockId || state.block] || {})
-    .filter(y => +y !== DATA.freeze_year).sort();
+    .filter(y => +y !== DATA.freeze_year && +y >= HIST_FLOOR).sort();
   return theme()[years.indexOf(year) % theme().length];
 }
 const blockColor = b => theme()[DATA.blocks.indexOf(b) % theme().length];
@@ -330,7 +334,7 @@ function lineChart(container, opts) {
     const tx = svg("text", { x: m.l - 6, y: yy + 3, "text-anchor": "end" });
     tx.textContent = (y1 - y0) <= 0.5 ? yv.toFixed(2) : yv.toFixed(1); g.appendChild(tx);
   }
-  MONTHS.forEach(([d, lab]) => {
+  (opts.xTicks || MONTHS).forEach(([d, lab]) => {
     if (d < x0 || d > x1) return;
     const xx = sx(d);
     g.appendChild(svg("line", { class: "gridline", x1: xx, x2: xx, y1: m.t, y2: m.t + ih, opacity: .55 }));
@@ -592,8 +596,8 @@ function renderCurves() {
     .filter(y => !state.hiddenYears.has(y) && (source[y] || []).length)
     .map(y => ({
       name: y, color: yearColor(y), points: source[y],
-      width: (+y === DATA.freeze_year || y === LY) ? 2.3 : 1.4,
-      opacity: (+y === DATA.freeze_year || y === LY) ? 1 : 0.85,
+      width: (+y === DATA.freeze_year || y === LY) ? 2.3 : (+y < HIST_FLOOR ? 1.1 : 1.4),
+      opacity: (+y === DATA.freeze_year || y === LY) ? 1 : (+y < HIST_FLOOR ? 0.7 : 0.85),
     }));
   lineChart($("#overlay-chart"), {
     series: mkSeries(seasons), xDomain: [91, 305], yDomain: [0, 1], height: 300,
@@ -732,6 +736,98 @@ function renderZones() {
   });
 }
 
+/* ---- ML season outlook: GP projection band + analog seasons ---- */
+const doyDate = d => { const t = new Date(Date.UTC(DATA.latest_year, 0, d)); return MN[t.getUTCMonth()] + " " + t.getUTCDate(); };
+
+function renderOutlook() {
+  const sec = $("#outlook-section");
+  const o = DATA.outlook[state.block];
+  if (!o || !o.band || !o.band.length) { sec.style.display = "none"; return; }
+  sec.style.display = "";
+
+  const obs = (DATA.timeseries[state.block] || {})[LY] || [];  // smoothed, like the season curves
+  const bandPts = o.band.map(b => [b[0], b[2], b[3]]);
+  const muPts = o.band.map(b => [b[0], b[1], doyDate(b[0])]);
+  lineChart($("#outlook-chart"), {
+    height: 260, xDomain: [91, 305], yDomain: [0, 1], fmtVal: fmt3,
+    bands: [{ pts: bandPts, color: cssVar("--band") }],
+    series: [
+      { name: "observed " + LY, color: cssVar("--accent"), points: obs, width: 1.8 },
+      { name: "projected", color: cssVar("--accent"), points: muPts, width: 1.6, dash: "6 4" },
+    ],
+  });
+
+  const lg = $("#outlook-legend"); lg.innerHTML = "";
+  const item = (mk, label) => { const it = el("span", "item"); it.append(mk, document.createTextNode(label)); lg.appendChild(it); };
+  const oSw = el("span", "swatch"); oSw.style.background = cssVar("--accent");
+  item(oSw, "observed so far");
+  const pSw = el("span", "swatch"); pSw.style.background = cssVar("--accent"); pSw.style.opacity = .55;
+  item(pSw, "projected (dashed)");
+  const bSw = el("span", "bandswatch"); bSw.style.background = cssVar("--band");
+  item(bSw, "80% range");
+
+  const stats = $("#outlook-stats"); stats.innerHTML = "";
+  const s = o.summary;
+  if (s) {
+    const tile = (label, value, sub) => {
+      const t = el("div", "kpi");
+      const l = el("div", "label"); l.textContent = label;
+      const v = el("div", "value"); v.textContent = value;
+      const s2 = el("div", "sub2"); s2.textContent = sub;
+      t.append(l, v, s2); stats.appendChild(t);
+    };
+    tile("Projected peak NDVI", fmt3(s.proj_peak),
+      fmt3(s.proj_peak_lo) + " – " + fmt3(s.proj_peak_hi) + " · 80% range");
+    tile("Projected May–Sep integral", s.proj_integral.toFixed(1),
+      s.proj_integral_lo.toFixed(1) + " – " + s.proj_integral_hi.toFixed(1) + " · approximate");
+    tile("Model history", s.n_train_seasons + (s.n_train_seasons === 1 ? " season" : " seasons"),
+      s.n_train_seasons < 3 ? "vine seasons · provisional" : "prior vine seasons");
+  }
+
+  const an = DATA.analogs[state.block] || [];
+  const note = $("#analog-note");
+  if (an.length) {
+    const parts = an.slice(0, 3).map(a =>
+      a.year + " · " + a.block + (a.pre ? " (pre-planting)" : "") + " (Δ " + a.diff.toFixed(3) + ")");
+    note.textContent = "Most similar past seasons so far: " + parts.join(",  ") +
+      ". Δ is the mean NDVI gap on shared days — smaller reads more alike.";
+  } else note.textContent = "";
+}
+
+/* ---- long-term history: Landsat 8/9 annual means ---- */
+function renderLandsat() {
+  const sec = $("#landsat-section");
+  const withData = DATA.blocks.filter(b => (DATA.landsat[b] || []).length);
+  if (!withData.length) { sec.style.display = "none"; return; }
+  sec.style.display = "";
+
+  let years = [];
+  withData.forEach(b => DATA.landsat[b].forEach(r => years.push(r[0])));
+  const y0 = Math.min(...years), y1 = Math.max(...years);
+  const step = (y1 - y0) > 9 ? 2 : 1;
+  const xTicks = [];
+  for (let y = y0; y <= y1; y++) if ((y - y0) % step === 0) xTicks.push([y, String(y)]);
+
+  const series = withData.map(b => {
+    const pts = DATA.landsat[b].map(r => [r[0], r[1], r[0] + " · " + r[2] + " scenes"]);
+    return { name: b, color: blockColor(b), points: pts, width: 1.7,
+             markers: pts.map(p => [p[0], p[1], 3]) };
+  });
+  lineChart($("#landsat-chart"), {
+    height: 240, xDomain: [y0 - 0.5, y1 + 0.5], yDomain: [0, 1],
+    xTicks, fmtVal: fmt3, series,
+  });
+
+  const lg = $("#landsat-legend"); lg.innerHTML = "";
+  withData.forEach(b => {
+    const it = el("span", "item");
+    const sw = el("span", "swatch"); sw.style.background = blockColor(b);
+    const k = DATA.kpis[b] || {};
+    it.append(sw, document.createTextNode(b + (k.variety ? " · " + k.variety : "")));
+    lg.appendChild(it);
+  });
+}
+
 /* ---- features table (sortable) ---- */
 let sortState = { key: "year", dir: 1 };
 function renderTable() {
@@ -786,10 +882,11 @@ function wireDownloads() {
 
 function renderAll() {
   renderCards(); renderTriage(); renderKpis(); renderCurves();
-  renderBaseline(); renderCompare(); renderZones(); renderTable();
+  renderBaseline(); renderOutlook(); renderCompare(); renderZones();
+  renderLandsat(); renderTable();
 }
 renderHeader(); wireDownloads(); renderAll();
-window.addEventListener("resize", () => { renderCurves(); renderBaseline(); renderCompare(); });
+window.addEventListener("resize", () => { renderCurves(); renderBaseline(); renderOutlook(); renderCompare(); renderLandsat(); });
 if (mqDark.addEventListener) mqDark.addEventListener("change", () => { renderHeader(); renderAll(); });
 """
 
@@ -862,6 +959,18 @@ _TEMPLATE = """<!doctype html>
     <div class="chart" id="baseline-chart"></div>
   </section>
 
+  <section id="outlook-section">
+    <h2>Season outlook <span class="sub">machine-learned projection</span></h2>
+    <div class="caption">A Gaussian-process model trained on this block&rsquo;s prior vine seasons
+      (plus the season so far) projects NDVI through October. The shaded band is the model&rsquo;s
+      80% range &mdash; it reflects how much past seasons varied, and it cannot see weather ahead.
+      With only a season or two of vine history, treat it as provisional.</div>
+    <div class="legend" id="outlook-legend"></div>
+    <div class="chart" id="outlook-chart"></div>
+    <div class="kpis" id="outlook-stats" style="margin-top:14px"></div>
+    <p class="note" id="analog-note"></p>
+  </section>
+
   <section id="cmp-section">
     <h2>This season across blocks</h2>
     <div class="caption">All blocks together, smoothed like the season curves: if every curve dips
@@ -879,6 +988,17 @@ _TEMPLATE = """<!doctype html>
       season-mean NDVI.</div>
     <div class="zonelegend" id="zone-legend"></div>
     <div class="zonewrap" id="zone-wrap"></div>
+  </section>
+
+  <section id="landsat-section">
+    <h2>Long-term history <span class="sub">Landsat 8/9 &middot; 30 m &middot; since 2014</span></h2>
+    <div class="caption">Growing-season (May&ndash;September) mean NDVI per year from Landsat &mdash;
+      a different satellite at coarser resolution, so compare shapes across years rather than exact
+      values against the Sentinel charts above. Years before the 2024 planting show the previous
+      ground cover; the 2021 heat dome and the 2024 freeze year sit in this record. Hover a point
+      for the number of clear scenes behind it.</div>
+    <div class="legend" id="landsat-legend"></div>
+    <div class="chart" id="landsat-chart"></div>
   </section>
 
   <section>

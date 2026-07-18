@@ -78,6 +78,32 @@ scene readings — raw spikes are cloud/smoke artifacts the grower read as fake
 stress. Keep raw readings reachable via the baseline chart and CSVs; do not
 "fix" the curves back to raw.
 
+## ML layer and Landsat history (added 2026-07-17)
+
+`src/vigor/ml.py` (post-Phase-5, offline, tested in `tests/test_ml.py`):
+Gaussian-process **season outlook** (projection band + projected peak/integral,
+80% ranges) and **analog seasons** (nearest past season by curve distance).
+Trains only on seasons >= each block's `baseline_start` plus the current one —
+never let pre-planting ground cover inform a vine projection; analogs may
+include pre-planting seasons but always tagged `pre`. Parquets:
+`season_outlook` / `outlook_summary` / `season_analogs`; payload keys
+`outlook` / `analogs`; rebuilt every weekly run.
+
+**Landsat 8/9 deep history (2014→)**: `extract.landsat_timeseries_table` (30 m,
+QA_PIXEL mask, same raw column names as S2 so `fetch_table` +
+`raw_to_timeseries` are shared) → `landsat_timeseries.parquet` → payload key
+`landsat` → "Long-term history" section (annual May–Sep means). Sentinel-2
+has no 2014 data — that is WHY Landsat exists here. Never mix the 30 m series
+into the 10 m analytics, zoning, or baselines. Backfill scripts
+(`scripts/backfill_landsat.py`, `scripts/backfill_s2.py`) are resumable
+(completed years are skipped) and pull **small windows** — EE's "Too many
+concurrent aggregations" error is about the per-scene reductions inside ONE
+request running in parallel server-side, so a dense window fails
+deterministically no matter the backoff; the S2 script bisects any window
+that stays throttled. The weekly run splices new scenes incrementally.
+S2 over these blocks effectively starts 2016 (2015 is empty); Landsat
+carries 2014-2015.
+
 ## Hard constraints (test-enforced — breaking these fails `tests/test_dashboard.py`)
 
 - The rendered page must contain no `src="http`, no `cdn` substring (any case),

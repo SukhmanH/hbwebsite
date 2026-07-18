@@ -29,6 +29,14 @@ CSP_COLLECTION = "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED"
 CS_BAND = "cs_cdf"
 CS_THRESHOLD = 0.60  # mask pixels with cs_cdf < 0.60
 
+# Landsat 8/9 Collection 2 Level-2: the pre-Sentinel deep history (2013->).
+# 30 m, so block-level medians only - never zoning, never mixed into the
+# 10 m S2 analytics.
+L8_COLLECTION = "LANDSAT/LC08/C02/T1_L2"
+L9_COLLECTION = "LANDSAT/LC09/C02/T1_L2"
+LANDSAT_SCALE = 30
+LANDSAT_START_YEAR = 2014  # first full L8 year over the Okanagan
+
 EDGE_BUFFER_M = -1.0  # trim the immediate polygon edge without losing block area
 MIN_PIXELS = 10  # warn and skip blocks smaller than this after buffering
 PIXEL_AREA_M2 = 100.0  # 10 m pixels
@@ -324,7 +332,97 @@ def timeseries_table(
     # This avoids a deeply nested sequential merge and lets EE schedule scene
     # reductions independently. Dropping geometries keeps the single getInfo
     # response compact; they have served their purpose as reduction regions.
-    scene_collections = ee.List(scenes.toList(scenes.size())).map(
+    # size().max(1): toList(0) errors, but a count above the collection size
+    # is fine, so an empty window yields an empty table instead of raising.
+    scene_collections = ee.List(scenes.toList(scenes.size().max(1))).map(
+        lambda img: _per_scene(ee.Image(img)).map(
+            lambda f: ee.Feature(f).setGeometry(None)
+        )
+    )
+    table = ee.FeatureCollection(scene_collections).flatten()
+    return table.filter(ee.Filter.gt("total_count", 0))
+
+
+def _prepare_landsat(img: ee.Image) -> ee.Image:
+    """Scale L2 SR to reflectance, mask QA_PIXEL cloud bits, add NDVI.
+
+    QA_PIXEL bits: 1 dilated cloud, 2 cirrus, 3 cloud, 4 cloud shadow.
+    """
+    qa = img.select("QA_PIXEL")
+    clear = (
+        qa.bitwiseAnd(1 << 1).eq(0)
+        .And(qa.bitwiseAnd(1 << 2).eq(0))
+        .And(qa.bitwiseAnd(1 << 3).eq(0))
+        .And(qa.bitwiseAnd(1 << 4).eq(0))
+    )
+    sr = img.select(["SR_B5", "SR_B4"]).multiply(0.0000275).add(-0.2)
+    ndvi = sr.normalizedDifference(["SR_B5", "SR_B4"]).rename("NDVI")
+    return ee.Image(
+        ndvi.updateMask(clear).copyProperties(img, ["system:time_start", "system:index"])
+    )
+
+
+def landsat_timeseries_table(
+    gdf: gpd.GeoDataFrame,
+    start_date: str,
+    end_date: str | None = None,
+) -> ee.FeatureCollection:
+    """Lazy (scene x block) Landsat 8/9 NDVI stats table at 30 m.
+
+    Emits the same raw property names as the S2 table (scene_id, date,
+    ndvi_median/p10/p90, valid_count, total_count), so `fetch_table` and
+    `ingest.raw_to_timeseries` serve both sensors; `ndre_median` has no
+    Landsat red-edge equivalent and comes back NaN. Keep pull windows to a
+    year or so - the same "Too many concurrent aggregations" limit applies.
+    """
+    if end_date is None:
+        end_date = (_dt.date.today() + _dt.timedelta(days=1)).isoformat()
+
+    blocks_fc = blocks_feature_collection(gdf)
+    scenes = (
+        ee.ImageCollection(L8_COLLECTION)
+        .merge(ee.ImageCollection(L9_COLLECTION))
+        .filterBounds(blocks_fc)
+        .filterDate(start_date, end_date)
+        .map(_prepare_landsat)
+    )
+
+    ndvi_reducer = (
+        ee.Reducer.median()
+        .combine(ee.Reducer.percentile([10, 90]), sharedInputs=True)
+        .combine(ee.Reducer.count(), sharedInputs=True)
+    )
+
+    def _per_scene(img: ee.Image) -> ee.FeatureCollection:
+        scene_id = img.get("system:index")
+        date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd")
+        stack = img.select(["NDVI"]).addBands(ee.Image.constant(1).rename("total"))
+        fc = stack.reduceRegions(
+            collection=blocks_fc, reducer=ndvi_reducer,
+            scale=LANDSAT_SCALE, crs=WORKING_CRS,
+        )
+
+        def _raw_properties(f: ee.Feature) -> ee.Feature:
+            f = ee.Feature(f)
+            return f.set(
+                {
+                    "scene_id": scene_id,
+                    "date": date,
+                    "ndvi_median": f.get("NDVI_median"),
+                    "ndvi_p10": f.get("NDVI_p10"),
+                    "ndvi_p90": f.get("NDVI_p90"),
+                    "valid_count": ee.Algorithms.If(
+                        f.propertyNames().contains("NDVI_count"),
+                        f.get("NDVI_count"),
+                        0,
+                    ),
+                    "total_count": f.get("total_count"),
+                }
+            )
+
+        return fc.map(_raw_properties)
+
+    scene_collections = ee.List(scenes.toList(scenes.size().max(1))).map(
         lambda img: _per_scene(ee.Image(img)).map(
             lambda f: ee.Feature(f).setGeometry(None)
         )

@@ -268,6 +268,76 @@ def _reading(status: dict, meta: pd.DataFrame) -> str:
     return text
 
 
+def _landsat_json(ls: pd.DataFrame | None) -> dict:
+    """Per block: [year, May-Sep mean NDVI, n obs] from the 30 m Landsat
+    history. Block-level context only - a different sensor and scale, never
+    mixed into the Sentinel charts."""
+    if ls is None:
+        return {}
+    df = ls.dropna(subset=["ndvi_median"]).copy()
+    df = df[df["valid_frac"] >= 0.6]
+    m = df["date"].dt.month
+    df = df[(m >= 5) & (m <= 9)]
+    df["year"] = df["date"].dt.year
+    out: dict[str, list] = {}
+    for block_id, g in df.groupby("block_id"):
+        rows = []
+        for year, gy in g.groupby("year"):
+            rows.append([int(year), round(float(gy["ndvi_median"].mean()), 3), int(len(gy))])
+        out[block_id] = sorted(rows)
+    return out
+
+
+def _outlook_json(band: pd.DataFrame | None, summary: pd.DataFrame | None) -> dict:
+    """Per block: the GP projection band for the rest of the season plus its
+    headline numbers (projected peak / May-Sep integral with 80% ranges)."""
+    if band is None or summary is None:
+        return {}
+    out: dict[str, dict] = {}
+    for block_id, g in band.groupby("block_id"):
+        g = g.sort_values("doy")
+        entry = {"band": [
+            [int(d), round(float(m), 4), round(float(lo), 4), round(float(hi), 4)]
+            for d, m, lo, hi in zip(g["doy"], g["mu"], g["lo"], g["hi"])
+        ]}
+        s = summary[summary["block_id"] == block_id]
+        if len(s):
+            r = s.iloc[0]
+            entry["summary"] = {
+                "n_train_seasons": int(r["n_train_seasons"]),
+                "proj_peak": float(r["proj_peak"]),
+                "proj_peak_lo": float(r["proj_peak_lo"]),
+                "proj_peak_hi": float(r["proj_peak_hi"]),
+                "proj_integral": float(r["proj_integral"]),
+                "proj_integral_lo": float(r["proj_integral_lo"]),
+                "proj_integral_hi": float(r["proj_integral_hi"]),
+            }
+        out[block_id] = entry
+    return out
+
+
+def _analogs_json(an: pd.DataFrame | None, meta: pd.DataFrame) -> dict:
+    """Per block: ranked most-similar past seasons, pre-planting ones tagged."""
+    if an is None or an.empty:
+        return {}
+    bstart = {}
+    if "baseline_start" in meta.columns:
+        bstart = {r.block_id: int(r.baseline_start) for r in meta.itertuples()
+                  if not pd.isna(r.baseline_start)}
+    out: dict[str, list] = {}
+    for block_id, g in an.groupby("block_id"):
+        out[block_id] = [
+            {
+                "block": r.analog_block,
+                "year": int(r.analog_year),
+                "diff": round(float(r.mean_abs_diff), 3),
+                "pre": int(r.analog_year) < bstart.get(r.analog_block, 0),
+            }
+            for r in g.sort_values("rank").itertuples()
+        ]
+    return out
+
+
 def _kpis(quality: pd.DataFrame, feats, al, meta) -> tuple[dict, int]:
     """Grower headline numbers per block: latest reading with its distance from
     baseline, latest NDRE, season peak so far vs typical, green-up vs typical,
@@ -368,6 +438,10 @@ def build_dashboard(
     feats = _load(processed_dir / "season_features.parquet")
     zoned = _load(processed_dir / "vigor_zones.parquet")
     al = _load(processed_dir / "vigor_alerts.parquet")
+    landsat = _load(processed_dir / "landsat_timeseries.parquet")
+    ol_band = _load(processed_dir / "season_outlook.parquet")
+    ol_summary = _load(processed_dir / "outlook_summary.parquet")
+    analogs = _load(processed_dir / "season_analogs.parquet")
 
     gdf = gpd.read_file(Path(blocks_path))
     meta = _block_meta(gdf)
@@ -382,6 +456,7 @@ def build_dashboard(
     data = {
         "generated": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "freeze_year": freeze_year,
+        "history_floor": BASELINE_FLOOR_YEAR,  # older seasons render as gray context
         "latest_year": latest_year,
         "latest_obs": quality["date"].max().strftime("%Y-%m-%d") if len(quality) else None,
         "sites": " & ".join(sites),
@@ -397,6 +472,9 @@ def build_dashboard(
         "features": _features_json(feats),
         "events": _events_json(al),
         "flags": _flags_json(al),
+        "landsat": _landsat_json(landsat),
+        "outlook": _outlook_json(ol_band, ol_summary),
+        "analogs": _analogs_json(analogs, meta),
     }
 
     html = render_page(json.dumps(data, separators=(",", ":")))
