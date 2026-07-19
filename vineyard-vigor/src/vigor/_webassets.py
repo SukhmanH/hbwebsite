@@ -255,6 +255,17 @@ th[aria-sort="descending"]:after { content:" \\2193"; color:var(--accent); }
 .note { color:var(--muted); font-size:13px; margin-top:12px; max-width:72ch; }
 code { background:var(--plane); border:1px solid var(--hairline); padding:1px 5px;
        border-radius:2px; font-size:12px; }
+
+.langtoggle {
+  display:inline-flex; border:1px solid var(--hairline); border-radius:2px; overflow:hidden;
+}
+.langtoggle button {
+  font-family:var(--font-sans); font-size:11px; font-weight:700; letter-spacing:0.06em;
+  color:var(--muted); background:none; border:0; cursor:pointer; padding:7px 12px;
+  transition:background-color .15s, color .15s;
+}
+.langtoggle button[aria-pressed="true"] { background:var(--clay); color:#fff8ee; }
+.langtoggle button:not([aria-pressed="true"]):hover { background:var(--mute-tint); color:var(--heading); }
 """
 
 # The whole chart engine + page wiring. Palette mirrors the CSS custom props;
@@ -265,6 +276,132 @@ code { background:var(--plane); border:1px solid var(--hairline); padding:1px 5p
 _JS = r"""
 const DATA = __DATA__;
 const $ = (s, r=document) => r.querySelector(s);
+
+/* ---- i18n: English / Punjabi toggle ---- */
+const STRINGS = {
+  en: {
+    back_to_site: "← Back to the site", eyebrow: "Field data · Vineyard Vigor Dashboard",
+    title: "How the blocks are growing",
+    building_baselines: "building baselines", blocks_flagged: "of {n} blocks flagged", all_on_track: "all blocks on track",
+    sentinel_label: "Sentinel-2 NDVI/NDRE", data_to: "data to {d}", south_okanagan: "South Okanagan",
+    status_active: "below baseline", status_flagged: "flagged, recovered", status_ok: "on track", status_no_baseline: "building baseline",
+    planted: "planted {y}",
+    this_season_h: "This season", this_season_cap: "A block is flagged when two consecutive readings sit under the 10th percentile of its own prior seasons at that time of year.",
+    stress_log_h: "Stress log", stress_log_sub: "every below-baseline run on record",
+    still_below: " · still below as of {d}", recovered_by: " · recovered by {d}",
+    low_readings_txt: "{n} low readings, {a} – {b}, season-low NDVI {v}",
+    col_year: "year", col_block: "block", col_first_low: "first low", col_last_low: "last low", col_low_readings: "low readings", col_season_low: "season-low NDVI",
+    glance_h: "At a glance", glance_cap: "Latest reading and this season’s headline numbers for the selected block.",
+    kpi_latest_ndvi: "Latest NDVI", kpi_latest_ndre: "Latest NDRE", kpi_canopy: "canopy chlorophyll · 20 m",
+    kpi_peak_so_far: "{y} peak so far", kpi_typical_peak: "typical full-season peak {v}", kpi_no_baseline: "no baseline seasons yet",
+    kpi_greenup: "Green-up", kpi_on_schedule: "on typical schedule", kpi_days_later: "{n} days later than typical", kpi_days_earlier: "{n} days earlier than typical",
+    kpi_first_leaf: "first leaf detected in NDVI", kpi_low_vigor: "Low-vigor readings", kpi_this_season: "this season · {s}",
+    vs_baseline: " vs baseline · {d}", kpi_vs_baseline_short: "vs baseline",
+    curves_h: "Season curves", curves_cap: "Every season on a shared April–October axis, outlier-screened and smoothed (Savitzky–Golay) so residual cloud and smoke spikes don’t read as vine stress. Toggle years in the legend (it drives both charts); hover for values and dates. The freeze year is red; exact scene readings live in the baseline chart and the CSVs.",
+    ndvi_h: "NDVI", ndvi_sub: "vine vigor · 10 m", ndre_h: "NDRE", ndre_sub: "canopy chlorophyll · 20 m · watch for late-season nutrient stress",
+    year_freeze: "{y} (freeze)", year_this_season: "{y} (this season)",
+    cur_vs_base_h: "Current season vs baseline", cur_vs_base_sub: "{y} season vs prior-season baseline",
+    cur_vs_base_cap: "The latest season against its own prior-season, day-of-year baseline. Red dots mark flagged (two-in-a-row below the 10th percentile) readings.",
+    no_baseline_yet: "no baseline yet (needs prior vine seasons)",
+    leg_prior_iqr: "prior-season IQR", leg_baseline_median: "baseline median", leg_10th_pct: "10th percentile", leg_this_season: "this season", leg_flagged: "flagged reading",
+    outlook_h: "Season outlook", outlook_sub: "machine-learned projection",
+    outlook_cap: "A Gaussian-process model trained on this block’s prior vine seasons (plus the season so far) projects NDVI through October. The shaded band is the model’s 80% range — it reflects how much past seasons varied, and it cannot see weather ahead. With only a season or two of vine history, treat it as provisional.",
+    leg_observed: "observed so far", leg_projected: "projected (dashed)", leg_80range: "80% range",
+    observed_label: "observed {y}", projected_label: "projected",
+    stat_proj_peak: "Projected peak NDVI", stat_range80: "{a} – {b} · 80% range",
+    stat_proj_integral: "Projected May–Sep integral", stat_approx: "{a} – {b} · approximate",
+    stat_model_history: "Model history", stat_season: "season", stat_seasons: "seasons",
+    stat_provisional: "vine seasons · provisional", stat_prior_seasons: "prior vine seasons",
+    analog_intro: "Most similar past seasons so far: ", analog_item: "{y} · {b}{pre} (Δ {d})", analog_pre: " (pre-planting)",
+    analog_outro: ". Δ is the mean NDVI gap on shared days — smaller reads more alike.",
+    cmp_h: "This season across blocks", cmp_cap: "All blocks together, smoothed like the season curves: if every curve dips at once the cause is shared (weather, heat, smoke); one curve dipping alone points at that block (irrigation, virus, damage).",
+    zones_h: "Vigor zones by season", zones_cap: "Within-block zones on the real block outline, one square per 10 m pixel. Zones that hold their shape across years read as soil or rootstock; one-off zones read as management, irrigation, or damage. Hover a pixel for its season-mean NDVI.",
+    zone_low: "low vigor", zone_medium: "medium", zone_high: "high vigor",
+    landsat_h: "Long-term history", landsat_sub: "Landsat 8/9 · 30 m · since 2014",
+    landsat_cap: "Growing-season (May–September) mean NDVI per year from Landsat — a different satellite at coarser resolution, so compare shapes across years rather than exact values against the Sentinel charts above. Years before the 2024 planting show the previous ground cover; the 2021 heat dome and the 2024 freeze year sit in this record. Hover a point for the number of clear scenes behind it.",
+    landsat_point_label: "{y} · {n} scenes",
+    features_h: "Season features", features_cap: "Peak NDVI, its day of year, the May–September integral (NDVI·days), and green-up date. Click a header to sort.",
+    col_peak_ndvi: "peak NDVI", col_peak_doy: "peak DOY", col_integral: "May–Sep integral", col_greenup: "green-up",
+    dl_features: "Download features CSV", dl_flags: "Download flagged readings CSV",
+    planted_note: "Blocks planted in 2024, so seasons before then reflect the previous ground cover; baselines and “typical” comparisons respect each block’s <code>baseline_start</code>. Read early-season flags as provisional until more vine history accrues.",
+    footer: "Sentinel-2 L2A (harmonized) · Cloud Score+ mask (cs_cdf ≥ 0.60) · observations with ≥80% clear pixels · NDVI 10 m, NDRE 20 m · generated {g}",
+  },
+  pa: {
+    back_to_site: "← ਵੈੱਬਸਾਈਟ ਤੇ ਵਾਪਸ ਜਾਓ", eyebrow: "ਖੇਤ ਦਾ ਡਾਟਾ · ਵਾਈਨਯਾਰਡ ਵਿਗਰ ਡੈਸ਼ਬੋਰਡ",
+    title: "ਬਲਾਕ ਕਿਵੇਂ ਵਧ ਰਹੇ ਹਨ",
+    building_baselines: "ਬੇਸਲਾਈਨ ਬਣ ਰਹੀ ਹੈ", blocks_flagged: "ਵਿੱਚੋਂ {n} ਬਲਾਕ ਨਿਸ਼ਾਨਬੱਧ", all_on_track: "ਸਾਰੇ ਬਲਾਕ ਠੀਕ ਹਨ",
+    sentinel_label: "Sentinel-2 NDVI/NDRE", data_to: "{d} ਤੱਕ ਦਾ ਡਾਟਾ", south_okanagan: "ਸਾਊਥ ਓਕਾਨਾਗਨ",
+    status_active: "ਬੇਸਲਾਈਨ ਤੋਂ ਹੇਠਾਂ", status_flagged: "ਨਿਸ਼ਾਨਬੱਧ, ਠੀਕ ਹੋ ਗਿਆ", status_ok: "ਠੀਕ ਚੱਲ ਰਿਹਾ ਹੈ", status_no_baseline: "ਬੇਸਲਾਈਨ ਬਣ ਰਹੀ ਹੈ",
+    planted: "{y} ਵਿੱਚ ਲਾਇਆ",
+    this_season_h: "ਇਸ ਸੀਜ਼ਨ", this_season_cap: "ਜਦੋਂ ਲਗਾਤਾਰ ਦੋ ਰੀਡਿੰਗਾਂ ਪਿਛਲੇ ਸੀਜ਼ਨਾਂ ਦੇ ਉਸੇ ਸਮੇਂ ਦੇ 10ਵੇਂ ਪ੍ਰਤੀਸ਼ਤ ਤੋਂ ਹੇਠਾਂ ਆਉਣ ਤਾਂ ਬਲਾਕ ਨਿਸ਼ਾਨਬੱਧ ਹੁੰਦਾ ਹੈ।",
+    stress_log_h: "ਤਣਾਅ ਲਾਗ", stress_log_sub: "ਰਿਕਾਰਡ ਵਿੱਚ ਹਰ ਹੇਠਲਾ ਦੌਰ",
+    still_below: " · {d} ਤੱਕ ਅਜੇ ਵੀ ਹੇਠਾਂ", recovered_by: " · {d} ਤੱਕ ਠੀਕ ਹੋ ਗਿਆ",
+    low_readings_txt: "{n} ਹੇਠਲੀਆਂ ਰੀਡਿੰਗਾਂ, {a} – {b}, ਸੀਜ਼ਨ ਦੀ ਸਭ ਤੋਂ ਘੱਟ NDVI {v}",
+    col_year: "ਸਾਲ", col_block: "ਬਲਾਕ", col_first_low: "ਪਹਿਲੀ ਹੇਠਲੀ", col_last_low: "ਆਖਰੀ ਹੇਠਲੀ", col_low_readings: "ਹੇਠਲੀਆਂ ਰੀਡਿੰਗਾਂ", col_season_low: "ਸੀਜ਼ਨ ਦੀ ਸਭ ਤੋਂ ਘੱਟ NDVI",
+    glance_h: "ਇੱਕ ਨਜ਼ਰ ਵਿੱਚ", glance_cap: "ਚੁਣੇ ਹੋਏ ਬਲਾਕ ਲਈ ਤਾਜ਼ਾ ਰੀਡਿੰਗ ਅਤੇ ਇਸ ਸੀਜ਼ਨ ਦੇ ਮੁੱਖ ਅੰਕੜੇ।",
+    kpi_latest_ndvi: "ਤਾਜ਼ਾ NDVI", kpi_latest_ndre: "ਤਾਜ਼ਾ NDRE", kpi_canopy: "ਛਤਰੀ ਕਲੋਰੋਫਿਲ · 20 ਮੀ",
+    kpi_peak_so_far: "{y} ਦਾ ਹੁਣ ਤੱਕ ਦਾ ਸਿਖਰ", kpi_typical_peak: "ਆਮ ਪੂਰੇ-ਸੀਜ਼ਨ ਦਾ ਸਿਖਰ {v}", kpi_no_baseline: "ਅਜੇ ਕੋਈ ਬੇਸਲਾਈਨ ਸੀਜ਼ਨ ਨਹੀਂ",
+    kpi_greenup: "ਹਰਿਆਲੀ ਦੀ ਸ਼ੁਰੂਆਤ", kpi_on_schedule: "ਆਮ ਸਮੇਂ ਅਨੁਸਾਰ", kpi_days_later: "ਆਮ ਨਾਲੋਂ {n} ਦਿਨ ਦੇਰੀ ਨਾਲ", kpi_days_earlier: "ਆਮ ਨਾਲੋਂ {n} ਦਿਨ ਪਹਿਲਾਂ",
+    kpi_first_leaf: "NDVI ਵਿੱਚ ਪਹਿਲਾ ਪੱਤਾ ਦੇਖਿਆ ਗਿਆ", kpi_low_vigor: "ਘੱਟ-ਵਿਗਰ ਰੀਡਿੰਗਾਂ", kpi_this_season: "ਇਸ ਸੀਜ਼ਨ · {s}",
+    vs_baseline: " ਬੇਸਲਾਈਨ ਦੇ ਮੁਕਾਬਲੇ · {d}", kpi_vs_baseline_short: "ਬੇਸਲਾਈਨ ਦੇ ਮੁਕਾਬਲੇ",
+    curves_h: "ਸੀਜ਼ਨ ਵਕਰ", curves_cap: "ਹਰ ਸੀਜ਼ਨ ਇੱਕ ਸਾਂਝੇ ਅਪ੍ਰੈਲ–ਅਕਤੂਬਰ ਧੁਰੇ ਉੱਤੇ, ਬਾਹਰਲੇ ਅੰਕੜੇ ਹਟਾ ਕੇ ਅਤੇ ਸਮੂਥ (Savitzky–Golay) ਕੀਤਾ ਗਿਆ ਹੈ ਤਾਂ ਜੋ ਬੱਦਲ ਜਾਂ ਧੂੰਏਂ ਦੀਆਂ ਗੜਬੜੀਆਂ ਵੇਲ ਦੇ ਤਣਾਅ ਵਾਂਗ ਨਾ ਦਿਖਣ। ਲੀਜੈਂਡ ਵਿੱਚ ਸਾਲ ਟੌਗਲ ਕਰੋ (ਇਹ ਦੋਵੇਂ ਚਾਰਟ ਬਦਲਦਾ ਹੈ); ਮੁੱਲ ਅਤੇ ਤਾਰੀਖ਼ਾਂ ਲਈ ਹੋਵਰ ਕਰੋ। ਫ੍ਰੀਜ਼ ਵਾਲਾ ਸਾਲ ਲਾਲ ਹੈ; ਸਹੀ ਰੀਡਿੰਗਾਂ ਬੇਸਲਾਈਨ ਚਾਰਟ ਅਤੇ CSV ਵਿੱਚ ਮਿਲਣਗੀਆਂ।",
+    ndvi_h: "NDVI", ndvi_sub: "ਵੇਲ ਦਾ ਵਿਗਰ · 10 ਮੀ", ndre_h: "NDRE", ndre_sub: "ਛਤਰੀ ਕਲੋਰੋਫਿਲ · 20 ਮੀ · ਸੀਜ਼ਨ ਦੇ ਅਖੀਰ ਦੇ ਪੋਸ਼ਕ ਤਣਾਅ ਲਈ ਦੇਖੋ",
+    year_freeze: "{y} (ਫ੍ਰੀਜ਼)", year_this_season: "{y} (ਇਹ ਸੀਜ਼ਨ)",
+    cur_vs_base_h: "ਮੌਜੂਦਾ ਸੀਜ਼ਨ ਬਨਾਮ ਬੇਸਲਾਈਨ", cur_vs_base_sub: "{y} ਸੀਜ਼ਨ ਬਨਾਮ ਪਿਛਲੇ ਸੀਜ਼ਨ ਦੀ ਬੇਸਲਾਈਨ",
+    cur_vs_base_cap: "ਤਾਜ਼ਾ ਸੀਜ਼ਨ ਦੀ ਤੁਲਨਾ ਇਸ ਦੇ ਆਪਣੇ ਪਿਛਲੇ ਸੀਜ਼ਨ ਦੀ, ਦਿਨ-ਮੁਤਾਬਕ ਬੇਸਲਾਈਨ ਨਾਲ। ਲਾਲ ਬਿੰਦੀਆਂ ਨਿਸ਼ਾਨਬੱਧ (ਲਗਾਤਾਰ ਦੋ ਵਾਰ 10ਵੇਂ ਪ੍ਰਤੀਸ਼ਤ ਤੋਂ ਹੇਠਾਂ) ਰੀਡਿੰਗਾਂ ਦਿਖਾਉਂਦੀਆਂ ਹਨ।",
+    no_baseline_yet: "ਅਜੇ ਕੋਈ ਬੇਸਲਾਈਨ ਨਹੀਂ (ਪਿਛਲੇ ਵੇਲ ਸੀਜ਼ਨ ਚਾਹੀਦੇ ਹਨ)",
+    leg_prior_iqr: "ਪਿਛਲੇ ਸੀਜ਼ਨ ਦਾ IQR", leg_baseline_median: "ਬੇਸਲਾਈਨ ਮੱਧਮਾਨ", leg_10th_pct: "10ਵਾਂ ਪ੍ਰਤੀਸ਼ਤ", leg_this_season: "ਇਹ ਸੀਜ਼ਨ", leg_flagged: "ਨਿਸ਼ਾਨਬੱਧ ਰੀਡਿੰਗ",
+    outlook_h: "ਸੀਜ਼ਨ ਦਾ ਅਨੁਮਾਨ", outlook_sub: "ਮਸ਼ੀਨ-ਸਿੱਖਿਆ ਪ੍ਰੋਜੈਕਸ਼ਨ",
+    outlook_cap: "ਇਸ ਬਲਾਕ ਦੇ ਪਿਛਲੇ ਵੇਲ ਸੀਜ਼ਨਾਂ (ਅਤੇ ਹੁਣ ਤੱਕ ਦੇ ਇਸ ਸੀਜ਼ਨ) ਉੱਤੇ ਸਿਖਲਾਈ ਪ੍ਰਾਪਤ ਇੱਕ ਗਾਊਸੀਅਨ-ਪ੍ਰੋਸੈੱਸ ਮਾਡਲ ਅਕਤੂਬਰ ਤੱਕ NDVI ਦਾ ਅਨੁਮਾਨ ਲਾਉਂਦਾ ਹੈ। ਛਾਂ ਵਾਲੀ ਪੱਟੀ ਮਾਡਲ ਦੀ 80% ਰੇਂਜ ਹੈ — ਇਹ ਦਿਖਾਉਂਦੀ ਹੈ ਕਿ ਪਿਛਲੇ ਸੀਜ਼ਨ ਕਿੰਨੇ ਬਦਲਦੇ ਰਹੇ, ਅਤੇ ਇਹ ਅੱਗੇ ਦਾ ਮੌਸਮ ਨਹੀਂ ਦੇਖ ਸਕਦੀ। ਸਿਰਫ਼ ਇੱਕ ਜਾਂ ਦੋ ਸੀਜ਼ਨ ਦੇ ਇਤਿਹਾਸ ਨਾਲ, ਇਸ ਨੂੰ ਆਰਜ਼ੀ ਸਮਝੋ।",
+    leg_observed: "ਹੁਣ ਤੱਕ ਦੇਖਿਆ ਗਿਆ", leg_projected: "ਅਨੁਮਾਨਿਤ (ਡੈਸ਼ਡ)", leg_80range: "80% ਰੇਂਜ",
+    observed_label: "{y} ਦੇਖਿਆ ਗਿਆ", projected_label: "ਅਨੁਮਾਨਿਤ",
+    stat_proj_peak: "ਅਨੁਮਾਨਿਤ ਸਿਖਰ NDVI", stat_range80: "{a} – {b} · 80% ਰੇਂਜ",
+    stat_proj_integral: "ਅਨੁਮਾਨਿਤ ਮਈ–ਸਤੰਬਰ ਇੰਟੈਗਰਲ", stat_approx: "{a} – {b} · ਲਗਭਗ",
+    stat_model_history: "ਮਾਡਲ ਇਤਿਹਾਸ", stat_season: "ਸੀਜ਼ਨ", stat_seasons: "ਸੀਜ਼ਨ",
+    stat_provisional: "ਵੇਲ ਸੀਜ਼ਨ · ਆਰਜ਼ੀ", stat_prior_seasons: "ਪਿਛਲੇ ਵੇਲ ਸੀਜ਼ਨ",
+    analog_intro: "ਹੁਣ ਤੱਕ ਦੇ ਸਭ ਤੋਂ ਮਿਲਦੇ-ਜੁਲਦੇ ਪਿਛਲੇ ਸੀਜ਼ਨ: ", analog_item: "{y} · {b}{pre} (Δ {d})", analog_pre: " (ਲਾਉਣ ਤੋਂ ਪਹਿਲਾਂ)",
+    analog_outro: "। Δ ਸਾਂਝੇ ਦਿਨਾਂ ਵਿੱਚ ਔਸਤ NDVI ਦਾ ਫ਼ਰਕ ਹੈ — ਛੋਟਾ ਹੋਣ ਦਾ ਮਤਲਬ ਵਧੇਰੇ ਮਿਲਦਾ-ਜੁਲਦਾ।",
+    cmp_h: "ਇਹ ਸੀਜ਼ਨ ਸਾਰੇ ਬਲਾਕਾਂ ਵਿੱਚ", cmp_cap: "ਸਾਰੇ ਬਲਾਕ ਇਕੱਠੇ, ਸੀਜ਼ਨ ਵਕਰਾਂ ਵਾਂਗ ਸਮੂਥ ਕੀਤੇ: ਜੇ ਹਰ ਵਕਰ ਇੱਕੋ ਵੇਲੇ ਡਿੱਗੇ ਤਾਂ ਕਾਰਨ ਸਾਂਝਾ ਹੈ (ਮੌਸਮ, ਗਰਮੀ, ਧੂੰਆਂ); ਜੇ ਇੱਕੱਲਾ ਵਕਰ ਡਿੱਗੇ ਤਾਂ ਇਹ ਉਸੇ ਬਲਾਕ ਵੱਲ ਇਸ਼ਾਰਾ ਕਰਦਾ ਹੈ (ਸਿੰਚਾਈ, ਵਾਇਰਸ, ਨੁਕਸਾਨ)।",
+    zones_h: "ਸੀਜ਼ਨ ਮੁਤਾਬਕ ਵਿਗਰ ਜ਼ੋਨ", zones_cap: "ਅਸਲ ਬਲਾਕ ਦੀ ਰੂਪਰੇਖਾ ਉੱਤੇ ਅੰਦਰੂਨੀ ਜ਼ੋਨ, ਹਰ 10 ਮੀ ਪਿਕਸਲ ਲਈ ਇੱਕ ਵਰਗ। ਜੋ ਜ਼ੋਨ ਸਾਲਾਂ ਦੌਰਾਨ ਆਪਣੀ ਸ਼ਕਲ ਬਣਾਈ ਰੱਖਦੇ ਹਨ ਉਹ ਮਿੱਟੀ ਜਾਂ ਜੜ੍ਹ ਦਾ ਸੰਕੇਤ ਹਨ; ਇੱਕ-ਵਾਰੀ ਜ਼ੋਨ ਪ੍ਰਬੰਧਨ, ਸਿੰਚਾਈ, ਜਾਂ ਨੁਕਸਾਨ ਦਾ ਸੰਕੇਤ ਹਨ। ਸੀਜ਼ਨ ਦੀ ਔਸਤ NDVI ਲਈ ਪਿਕਸਲ ਉੱਤੇ ਹੋਵਰ ਕਰੋ।",
+    zone_low: "ਘੱਟ ਵਿਗਰ", zone_medium: "ਦਰਮਿਆਨਾ", zone_high: "ਵੱਧ ਵਿਗਰ",
+    landsat_h: "ਲੰਬੇ ਸਮੇਂ ਦਾ ਇਤਿਹਾਸ", landsat_sub: "Landsat 8/9 · 30 ਮੀ · 2014 ਤੋਂ",
+    landsat_cap: "Landsat ਤੋਂ ਹਰ ਸਾਲ ਦੀ ਵਧਣ-ਸੀਜ਼ਨ (ਮਈ–ਸਤੰਬਰ) ਦੀ ਔਸਤ NDVI — ਇੱਕ ਵੱਖਰਾ ਸੈਟੇਲਾਈਟ, ਘੱਟ ਰੈਜ਼ੋਲਿਊਸ਼ਨ ਨਾਲ, ਇਸ ਲਈ ਉੱਪਰਲੇ Sentinel ਚਾਰਟਾਂ ਦੇ ਸਹੀ ਮੁੱਲਾਂ ਦੀ ਬਜਾਏ ਸਾਲਾਂ ਵਿਚਲੀ ਸ਼ਕਲ ਦੀ ਤੁਲਨਾ ਕਰੋ। 2024 ਦੀ ਲਾਈ ਤੋਂ ਪਹਿਲਾਂ ਦੇ ਸਾਲ ਪਿਛਲੀ ਜ਼ਮੀਨੀ ਹਰਿਆਲੀ ਦਿਖਾਉਂਦੇ ਹਨ; 2021 ਦਾ ਹੀਟ ਡੋਮ ਅਤੇ 2024 ਦਾ ਫ੍ਰੀਜ਼ ਸਾਲ ਇਸ ਰਿਕਾਰਡ ਵਿੱਚ ਹਨ। ਪਿੱਛੇ ਦੇ ਸਾਫ਼ ਸੀਨਾਂ ਦੀ ਗਿਣਤੀ ਲਈ ਬਿੰਦੂ ਉੱਤੇ ਹੋਵਰ ਕਰੋ।",
+    landsat_point_label: "{y} · {n} ਸੀਨ",
+    features_h: "ਸੀਜ਼ਨ ਵਿਸ਼ੇਸ਼ਤਾਵਾਂ", features_cap: "ਸਿਖਰ NDVI, ਇਸ ਦਾ ਦਿਨ, ਮਈ–ਸਤੰਬਰ ਇੰਟੈਗਰਲ (NDVI·ਦਿਨ), ਅਤੇ ਹਰਿਆਲੀ ਦੀ ਸ਼ੁਰੂਆਤ ਦੀ ਤਾਰੀਖ਼। ਕ੍ਰਮਬੱਧ ਕਰਨ ਲਈ ਸਿਰਲੇਖ ਉੱਤੇ ਕਲਿੱਕ ਕਰੋ।",
+    col_peak_ndvi: "ਸਿਖਰ NDVI", col_peak_doy: "ਸਿਖਰ ਦਿਨ", col_integral: "ਮਈ–ਸਤੰਬਰ ਇੰਟੈਗਰਲ", col_greenup: "ਹਰਿਆਲੀ ਦੀ ਸ਼ੁਰੂਆਤ",
+    dl_features: "ਵਿਸ਼ੇਸ਼ਤਾਵਾਂ CSV ਡਾਊਨਲੋਡ ਕਰੋ", dl_flags: "ਨਿਸ਼ਾਨਬੱਧ ਰੀਡਿੰਗਾਂ CSV ਡਾਊਨਲੋਡ ਕਰੋ",
+    planted_note: "ਬਲਾਕ 2024 ਵਿੱਚ ਲਾਏ ਗਏ ਸਨ, ਇਸ ਲਈ ਉਸ ਤੋਂ ਪਹਿਲਾਂ ਦੇ ਸੀਜ਼ਨ ਪਿਛਲੀ ਜ਼ਮੀਨੀ ਹਰਿਆਲੀ ਦਰਸਾਉਂਦੇ ਹਨ; ਬੇਸਲਾਈਨ ਅਤੇ “ਆਮ” ਤੁਲਨਾਵਾਂ ਹਰ ਬਲਾਕ ਦੀ <code>baseline_start</code> ਦਾ ਧਿਆਨ ਰੱਖਦੀਆਂ ਹਨ। ਸੀਜ਼ਨ ਦੀ ਸ਼ੁਰੂਆਤ ਦੇ ਨਿਸ਼ਾਨਾਂ ਨੂੰ ਹੋਰ ਵੇਲ ਇਤਿਹਾਸ ਇਕੱਠਾ ਹੋਣ ਤੱਕ ਆਰਜ਼ੀ ਸਮਝੋ।",
+    footer: "Sentinel-2 L2A (harmonized) · Cloud Score+ ਮਾਸਕ (cs_cdf ≥ 0.60) · ≥80% ਸਾਫ਼ ਪਿਕਸਲ ਵਾਲੀਆਂ ਰੀਡਿੰਗਾਂ · NDVI 10 ਮੀ, NDRE 20 ਮੀ · ਤਿਆਰ ਕੀਤਾ {g}",
+  },
+};
+let lang = (() => { try { return localStorage.getItem("vigor-lang") || "en"; } catch (e) { return "en"; } })();
+const t = (key, vars) => {
+  let s = (STRINGS[lang] && STRINGS[lang][key]) ?? STRINGS.en[key] ?? key;
+  if (vars) for (const k in vars) s = s.replaceAll("{" + k + "}", vars[k]);
+  return s;
+};
+function applyStaticI18n() {
+  document.documentElement.lang = lang === "pa" ? "pa" : "en";
+  document.querySelectorAll("[data-i18n]").forEach(nd => { nd.textContent = t(nd.getAttribute("data-i18n")); });
+  document.querySelectorAll("[data-i18n-html]").forEach(nd => { nd.innerHTML = t(nd.getAttribute("data-i18n-html")); });
+  document.title = t("title") + " · H.B. Bro’s";
+  const foot = $("#footer");
+  if (foot) foot.textContent = t("footer", { g: foot.dataset.generated });
+}
+function wireLangToggle() {
+  const wrap = $("#lang-toggle"); if (!wrap) return;
+  wrap.querySelectorAll("button").forEach(b => {
+    b.setAttribute("aria-pressed", b.dataset.lang === lang ? "true" : "false");
+    b.onclick = () => {
+      if (lang === b.dataset.lang) return;
+      lang = b.dataset.lang;
+      try { localStorage.setItem("vigor-lang", lang); } catch (e) {}
+      wrap.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.lang === lang ? "true" : "false"));
+      applyStaticI18n(); renderHeader(); renderAll();
+    };
+  });
+}
+
 const el = (t, cls) => { const e = document.createElement(t); if (cls) e.className = cls; return e; };
 const cssVar = n => getComputedStyle(document.body).getPropertyValue(n).trim();
 const NS = "http://www.w3.org/2000/svg";
@@ -304,10 +441,10 @@ const blockColor = b => theme()[DATA.blocks.indexOf(b) % theme().length];
 /* ---- status vocabulary (icon + label, never color alone) ---- */
 function statusMeta(st) {
   return {
-    active:        { glyph: "⚠", label: "below baseline", cls: "crit" },
-    flagged:       { glyph: "⚠", label: "flagged, recovered", cls: "warn" },
-    ok:            { glyph: "✓", label: "on track", cls: "good" },
-    "no-baseline": { glyph: "○", label: "building baseline", cls: "mute" },
+    active:        { glyph: "⚠", label: t("status_active"), cls: "crit" },
+    flagged:       { glyph: "⚠", label: t("status_flagged"), cls: "warn" },
+    ok:            { glyph: "✓", label: t("status_ok"), cls: "good" },
+    "no-baseline": { glyph: "○", label: t("status_no_baseline"), cls: "mute" },
   }[st] || { glyph: "○", label: st, cls: "mute" };
 }
 
@@ -409,17 +546,17 @@ function renderHeader() {
   const nLow = sts.filter(s => s === "active" || s === "flagged").length;
   const judged = sts.filter(s => s && s !== "no-baseline").length;
   let cls, glyph, text;
-  if (!judged) { cls = "mute"; glyph = "○"; text = "building baselines"; }
-  else if (nLow) { cls = "alert"; glyph = "⚠"; text = nLow + " of " + DATA.blocks.length + " blocks flagged"; }
-  else { cls = "ok"; glyph = "✓"; text = "all blocks on track"; }
+  if (!judged) { cls = "mute"; glyph = "○"; text = t("building_baselines"); }
+  else if (nLow) { cls = "alert"; glyph = "⚠"; text = nLow + " " + t("blocks_flagged", { n: DATA.blocks.length }); }
+  else { cls = "ok"; glyph = "✓"; text = t("all_on_track"); }
   chip.className = "chip " + cls;
   const gl = el("span"); gl.textContent = glyph;
   chip.append(gl, document.createTextNode(text));
 
   const bits = [];
-  if (DATA.sites) bits.push(DATA.sites + ", South Okanagan");
-  bits.push("Sentinel-2 NDVI/NDRE");
-  if (DATA.latest_obs) bits.push("data to " + DATA.latest_obs);
+  if (DATA.sites) bits.push(DATA.sites + ", " + t("south_okanagan"));
+  bits.push(t("sentinel_label"));
+  if (DATA.latest_obs) bits.push(t("data_to", { d: DATA.latest_obs }));
   $("#hdr-meta").textContent = bits.join(" · ");
 }
 
@@ -463,7 +600,7 @@ function renderCards() {
     top.append(nm, pill);
 
     const sub = el("div", "subline");
-    sub.textContent = [k.variety, k.site, k.planting_year ? "planted " + k.planting_year : null]
+    sub.textContent = [k.variety, k.site, k.planting_year ? t("planted", { y: k.planting_year }) : null]
       .filter(Boolean).join(" · ");
 
     const bottom = el("div", "bottomrow");
@@ -475,7 +612,7 @@ function renderCards() {
     if (k.latest_delta !== null && k.latest_delta !== undefined) {
       const d = el("span", k.latest_delta < 0 ? "down" : "up");
       d.textContent = fmtDelta(k.latest_delta);
-      dl.append(d, document.createTextNode(" vs baseline · " + fdate(k.latest_date)));
+      dl.append(d, document.createTextNode(t("vs_baseline", { d: fdate(k.latest_date) })));
     } else dl.textContent = fdate(k.latest_date);
     left.append(big, dl);
     bottom.appendChild(left);
@@ -505,11 +642,10 @@ function renderTriage() {
     const gl = el("span", "glyph"); gl.textContent = "⚠";
     const nm = el("b"); nm.textContent = b;
     const det = el("span", "detail");
-    let t = st.n_low + " low readings, " + fdate(st.first_low) + " – " + fdate(st.last_low)
-      + ", season-low NDVI " + fmt3(st.min_ndvi);
-    t += st.state === "active" ? " · still below as of " + fdate(st.last_obs)
-                               : " · recovered by " + fdate(st.last_obs);
-    det.textContent = t;
+    let txt = t("low_readings_txt", { n: st.n_low, a: fdate(st.first_low), b: fdate(st.last_low), v: fmt3(st.min_ndvi) });
+    txt += st.state === "active" ? t("still_below", { d: fdate(st.last_obs) })
+                                  : t("recovered_by", { d: fdate(st.last_obs) });
+    det.textContent = txt;
     line.append(gl, nm, det);
     fl.appendChild(line);
   });
@@ -517,7 +653,7 @@ function renderTriage() {
   const tbl = $("#evt-table"); tbl.innerHTML = "";
   if (!DATA.events.length) { $("#evt-wrap").style.display = "none"; return; }
   $("#evt-wrap").style.display = "";
-  const cols = ["year", "block", "first low", "last low", "low readings", "season-low NDVI"];
+  const cols = [t("col_year"), t("col_block"), t("col_first_low"), t("col_last_low"), t("col_low_readings"), t("col_season_low")];
   const thead = el("thead"), htr = el("tr");
   cols.forEach((c, i) => { const th = el("th" ); if (i > 3) th.className = "num"; th.textContent = c; htr.appendChild(th); });
   thead.appendChild(htr); tbl.appendChild(thead);
@@ -549,35 +685,35 @@ function renderKpis() {
     sp.textContent = text; target.appendChild(sp);
   };
 
-  let s2 = tile("Latest NDVI", k.latest_ndvi === null ? null : fmt3(k.latest_ndvi));
+  let s2 = tile(t("kpi_latest_ndvi"), k.latest_ndvi === null ? null : fmt3(k.latest_ndvi));
   s2.textContent = fdate(k.latest_date) + (k.latest_delta !== null && k.latest_delta !== undefined ? " · " : "");
   if (k.latest_delta !== null && k.latest_delta !== undefined)
-    colored(s2, k.latest_delta, fmtDelta(k.latest_delta) + " vs baseline", false);
+    colored(s2, k.latest_delta, fmtDelta(k.latest_delta) + " " + t("kpi_vs_baseline_short"), false);
 
-  s2 = tile("Latest NDRE", k.latest_ndre === null ? null : fmt3(k.latest_ndre));
-  s2.textContent = "canopy chlorophyll · 20 m";
+  s2 = tile(t("kpi_latest_ndre"), k.latest_ndre === null ? null : fmt3(k.latest_ndre));
+  s2.textContent = t("kpi_canopy");
 
-  s2 = tile(DATA.latest_year + " peak so far", k.peak_ndvi === null ? null : fmt3(k.peak_ndvi));
+  s2 = tile(t("kpi_peak_so_far", { y: DATA.latest_year }), k.peak_ndvi === null ? null : fmt3(k.peak_ndvi));
   s2.textContent = k.peak_typical !== null && k.peak_typical !== undefined
-    ? "typical full-season peak " + fmt3(k.peak_typical) : "no baseline seasons yet";
+    ? t("kpi_typical_peak", { v: fmt3(k.peak_typical) }) : t("kpi_no_baseline");
 
-  s2 = tile("Green-up", fdate(k.greenup_date));
+  s2 = tile(t("kpi_greenup"), fdate(k.greenup_date));
   if (k.greenup_delta_days !== null && k.greenup_delta_days !== undefined) {
     const d = k.greenup_delta_days;
-    colored(s2, d, d === 0 ? "on typical schedule"
-      : Math.abs(d) + " days " + (d > 0 ? "later" : "earlier") + " than typical", true);
-  } else s2.textContent = "first leaf detected in NDVI";
+    colored(s2, d, d === 0 ? t("kpi_on_schedule")
+      : t(d > 0 ? "kpi_days_later" : "kpi_days_earlier", { n: Math.abs(d) }), true);
+  } else s2.textContent = t("kpi_first_leaf");
 
   const sm = statusMeta(st.state || "no-baseline");
-  s2 = tile("Low-vigor readings", k.active_alerts,
+  s2 = tile(t("kpi_low_vigor"), k.active_alerts,
     k.active_alerts ? "alert" : (st.state === "ok" ? "ok" : ""));
-  s2.textContent = "this season · " + sm.label;
+  s2.textContent = t("kpi_this_season", { s: sm.label });
 }
 
 /* ---- season curves: NDVI + NDRE share one year legend ---- */
 function yearLabel(y) {
-  if (+y === DATA.freeze_year) return y + " (freeze)";
-  if (y === LY) return y + " (this season)";
+  if (+y === DATA.freeze_year) return t("year_freeze", { y });
+  if (y === LY) return t("year_this_season", { y });
   return y;
 }
 
@@ -617,9 +753,9 @@ function renderBaseline() {
   const wrap = $("#baseline-chart"), title = $("#baseline-title"), lg = $("#baseline-legend");
   const byYear = (DATA.baseline[state.block]) || {};
   const years = Object.keys(byYear).filter(y => byYear[y].base.length).sort();
-  if (!years.length) { wrap.innerHTML = ""; lg.innerHTML = ""; title.textContent = "no baseline yet (needs prior vine seasons)"; return; }
+  if (!years.length) { wrap.innerHTML = ""; lg.innerHTML = ""; title.textContent = t("no_baseline_yet"); return; }
   const yr = years[years.length - 1];
-  title.textContent = yr + " season vs prior-season baseline";
+  title.textContent = t("cur_vs_base_sub", { y: yr });
   const a = byYear[yr];
   const bandPts = a.base.map(b => [b[0], b[2], b[4]]);        // p25..p75
   const p10 = a.base.map(b => [b[0], b[1]]);
@@ -634,8 +770,8 @@ function renderBaseline() {
     height: 260, xDomain: [91, 305], yDomain: [0, 1], fmtVal: fmt3,
     bands: [{ pts: bandPts, color: cssVar("--band") }],
     series: [
-      { name: "baseline median", color: cssVar("--faint"), points: med, width: 1.2, hover: false },
-      { name: "10th pct", color: cssVar("--warn"), points: p10, width: 1.2, dash: "5 4", hover: false },
+      { name: t("leg_baseline_median"), color: cssVar("--faint"), points: med, width: 1.2, hover: false },
+      { name: t("leg_10th_pct"), color: cssVar("--warn"), points: p10, width: 1.2, dash: "5 4", hover: false },
       { name: state.block + " " + yr, color: cssVar("--accent"), points: obs, width: 1.8, markers },
     ],
   });
@@ -643,15 +779,15 @@ function renderBaseline() {
   lg.innerHTML = "";
   const item = (mk, label) => { const it = el("span", "item"); it.append(mk, document.createTextNode(label)); lg.appendChild(it); };
   const band = el("span", "bandswatch"); band.style.background = cssVar("--band");
-  item(band, "prior-season IQR");
+  item(band, t("leg_prior_iqr"));
   const medSw = el("span", "swatch"); medSw.style.background = cssVar("--faint");
-  item(medSw, "baseline median");
+  item(medSw, t("leg_baseline_median"));
   const pSw = el("span", "swatch"); pSw.style.background = cssVar("--warn");
-  item(pSw, "10th percentile");
+  item(pSw, t("leg_10th_pct"));
   const oSw = el("span", "swatch"); oSw.style.background = cssVar("--accent");
-  item(oSw, "this season");
+  item(oSw, t("leg_this_season"));
   const fSw = el("span", "dotswatch"); fSw.style.background = cssVar("--critical");
-  item(fSw, "flagged reading");
+  item(fSw, t("leg_flagged"));
 }
 
 /* ---- this season across blocks ---- */
@@ -681,7 +817,7 @@ function renderCompare() {
 function renderZones() {
   const ramp = zoneRamp();
   const lg = $("#zone-legend"); lg.innerHTML = "";
-  ["low vigor", "medium", "high vigor"].forEach((lab, i) => {
+  [t("zone_low"), t("zone_medium"), t("zone_high")].forEach((lab, i) => {
     const it = el("span"); const sw = el("i"); sw.style.background = ramp[i];
     it.append(sw, document.createTextNode(lab)); lg.appendChild(it);
   });
@@ -722,7 +858,7 @@ function renderZones() {
       r.addEventListener("pointerenter", ev => {
         tip.innerHTML = "";
         const zr = el("div", "tt-row"); const zn = el("span", "tt-name");
-        zn.textContent = ["low vigor", "medium vigor", "high vigor"][p[2]] || ("zone " + p[2]);
+        zn.textContent = [t("zone_low"), t("zone_medium"), t("zone_high")][p[2]] || ("zone " + p[2]);
         const zv = el("span", "tt-val"); zv.textContent = p[3].toFixed(3);
         zr.append(zn, zv); tip.appendChild(zr);
         tip.style.opacity = 1;
@@ -752,45 +888,44 @@ function renderOutlook() {
     height: 260, xDomain: [91, 305], yDomain: [0, 1], fmtVal: fmt3,
     bands: [{ pts: bandPts, color: cssVar("--band") }],
     series: [
-      { name: "observed " + LY, color: cssVar("--accent"), points: obs, width: 1.8 },
-      { name: "projected", color: cssVar("--accent"), points: muPts, width: 1.6, dash: "6 4" },
+      { name: t("observed_label", { y: LY }), color: cssVar("--accent"), points: obs, width: 1.8 },
+      { name: t("projected_label"), color: cssVar("--accent"), points: muPts, width: 1.6, dash: "6 4" },
     ],
   });
 
   const lg = $("#outlook-legend"); lg.innerHTML = "";
   const item = (mk, label) => { const it = el("span", "item"); it.append(mk, document.createTextNode(label)); lg.appendChild(it); };
   const oSw = el("span", "swatch"); oSw.style.background = cssVar("--accent");
-  item(oSw, "observed so far");
+  item(oSw, t("leg_observed"));
   const pSw = el("span", "swatch"); pSw.style.background = cssVar("--accent"); pSw.style.opacity = .55;
-  item(pSw, "projected (dashed)");
+  item(pSw, t("leg_projected"));
   const bSw = el("span", "bandswatch"); bSw.style.background = cssVar("--band");
-  item(bSw, "80% range");
+  item(bSw, t("leg_80range"));
 
   const stats = $("#outlook-stats"); stats.innerHTML = "";
   const s = o.summary;
   if (s) {
     const tile = (label, value, sub) => {
-      const t = el("div", "kpi");
+      const tl = el("div", "kpi");
       const l = el("div", "label"); l.textContent = label;
       const v = el("div", "value"); v.textContent = value;
       const s2 = el("div", "sub2"); s2.textContent = sub;
-      t.append(l, v, s2); stats.appendChild(t);
+      tl.append(l, v, s2); stats.appendChild(tl);
     };
-    tile("Projected peak NDVI", fmt3(s.proj_peak),
-      fmt3(s.proj_peak_lo) + " – " + fmt3(s.proj_peak_hi) + " · 80% range");
-    tile("Projected May–Sep integral", s.proj_integral.toFixed(1),
-      s.proj_integral_lo.toFixed(1) + " – " + s.proj_integral_hi.toFixed(1) + " · approximate");
-    tile("Model history", s.n_train_seasons + (s.n_train_seasons === 1 ? " season" : " seasons"),
-      s.n_train_seasons < 3 ? "vine seasons · provisional" : "prior vine seasons");
+    tile(t("stat_proj_peak"), fmt3(s.proj_peak),
+      t("stat_range80", { a: fmt3(s.proj_peak_lo), b: fmt3(s.proj_peak_hi) }));
+    tile(t("stat_proj_integral"), s.proj_integral.toFixed(1),
+      t("stat_approx", { a: s.proj_integral_lo.toFixed(1), b: s.proj_integral_hi.toFixed(1) }));
+    tile(t("stat_model_history"), s.n_train_seasons + " " + t(s.n_train_seasons === 1 ? "stat_season" : "stat_seasons"),
+      s.n_train_seasons < 3 ? t("stat_provisional") : t("stat_prior_seasons"));
   }
 
   const an = DATA.analogs[state.block] || [];
   const note = $("#analog-note");
   if (an.length) {
     const parts = an.slice(0, 3).map(a =>
-      a.year + " · " + a.block + (a.pre ? " (pre-planting)" : "") + " (Δ " + a.diff.toFixed(3) + ")");
-    note.textContent = "Most similar past seasons so far: " + parts.join(",  ") +
-      ". Δ is the mean NDVI gap on shared days — smaller reads more alike.";
+      t("analog_item", { y: a.year, b: a.block, pre: a.pre ? t("analog_pre") : "", d: a.diff.toFixed(3) }));
+    note.textContent = t("analog_intro") + parts.join(",  ") + t("analog_outro");
   } else note.textContent = "";
 }
 
@@ -809,7 +944,7 @@ function renderLandsat() {
   for (let y = y0; y <= y1; y++) if ((y - y0) % step === 0) xTicks.push([y, String(y)]);
 
   const series = withData.map(b => {
-    const pts = DATA.landsat[b].map(r => [r[0], r[1], r[0] + " · " + r[2] + " scenes"]);
+    const pts = DATA.landsat[b].map(r => [r[0], r[1], t("landsat_point_label", { y: r[0], n: r[2] })]);
     return { name: b, color: blockColor(b), points: pts, width: 1.7,
              markers: pts.map(p => [p[0], p[1], 3]) };
   });
@@ -832,8 +967,8 @@ function renderLandsat() {
 let sortState = { key: "year", dir: 1 };
 function renderTable() {
   const rows = DATA.features.filter(r => r.block_id === state.block);
-  const cols = [["year", "year", 0], ["peak_ndvi", "peak NDVI", 1], ["peak_doy", "peak DOY", 1],
-    ["integral_may_sep", "May–Sep integral", 1], ["greenup_date", "green-up", 0]];
+  const cols = [["year", t("col_year"), 0], ["peak_ndvi", t("col_peak_ndvi"), 1], ["peak_doy", t("col_peak_doy"), 1],
+    ["integral_may_sep", t("col_integral"), 1], ["greenup_date", t("col_greenup"), 0]];
   const tbl = $("#feat-table"); tbl.innerHTML = "";
   const thead = el("thead"), htr = el("tr");
   cols.forEach(([key, label, num]) => {
@@ -885,7 +1020,7 @@ function renderAll() {
   renderBaseline(); renderOutlook(); renderCompare(); renderZones();
   renderLandsat(); renderTable();
 }
-renderHeader(); wireDownloads(); renderAll();
+applyStaticI18n(); wireLangToggle(); renderHeader(); wireDownloads(); renderAll();
 window.addEventListener("resize", () => { renderCurves(); renderBaseline(); renderOutlook(); renderCompare(); renderLandsat(); });
 if (mqDark.addEventListener) mqDark.addEventListener("change", () => { renderHeader(); renderAll(); });
 """
@@ -906,12 +1041,17 @@ _TEMPLATE = """<!doctype html>
       <span class="wm-name">H.B. Bro&rsquo;s</span>
       <span class="wm-sub">Vineyards</span>
     </a>
-    <a class="backlink" href="/">&larr; Back to the site</a>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span class="langtoggle" id="lang-toggle">
+        <button type="button" data-lang="en">EN</button><button type="button" data-lang="pa">ਪੰਜਾਬੀ</button>
+      </span>
+      <a class="backlink" href="/" data-i18n="back_to_site">&larr; Back to the site</a>
+    </div>
   </div>
   <div class="masthead">
     <div>
-      <div class="eyebrow">Field data &middot; Vineyard Vigor Dashboard</div>
-      <h1>How the blocks are growing</h1>
+      <div class="eyebrow" data-i18n="eyebrow">Field data &middot; Vineyard Vigor Dashboard</div>
+      <h1 data-i18n="title">How the blocks are growing</h1>
       <div class="meta" id="hdr-meta"></div>
     </div>
     <span class="chip" id="chip"></span>
@@ -921,47 +1061,47 @@ _TEMPLATE = """<!doctype html>
   <div class="cards" id="cards"></div>
 
   <section class="banner" id="triage">
-    <h2>This season</h2>
-    <div class="caption">A block is flagged when two consecutive readings sit under the
+    <h2 data-i18n="this_season_h">This season</h2>
+    <div class="caption" data-i18n="this_season_cap">A block is flagged when two consecutive readings sit under the
       10th percentile of its own prior seasons at that time of year.</div>
     <p class="reading" id="reading"></p>
     <div id="flaglines"></div>
     <div id="evt-wrap">
-      <h3>Stress log <span class="sub">every below-baseline run on record</span></h3>
+      <h3><span data-i18n="stress_log_h">Stress log</span> <span class="sub" data-i18n="stress_log_sub">every below-baseline run on record</span></h3>
       <div class="overflow"><table id="evt-table"></table></div>
     </div>
   </section>
 
   <section>
-    <h2>At a glance</h2>
-    <div class="caption">Latest reading and this season&rsquo;s headline numbers for the selected block.</div>
+    <h2 data-i18n="glance_h">At a glance</h2>
+    <div class="caption" data-i18n="glance_cap">Latest reading and this season&rsquo;s headline numbers for the selected block.</div>
     <div class="kpis" id="kpis"></div>
   </section>
 
   <section>
-    <h2>Season curves</h2>
-    <div class="caption">Every season on a shared April&ndash;October axis, outlier-screened and
+    <h2 data-i18n="curves_h">Season curves</h2>
+    <div class="caption" data-i18n="curves_cap">Every season on a shared April&ndash;October axis, outlier-screened and
       smoothed (Savitzky&ndash;Golay) so residual cloud and smoke spikes don&rsquo;t read as vine
       stress. Toggle years in the legend (it drives both charts); hover for values and dates.
       The freeze year is red; exact scene readings live in the baseline chart and the CSVs.</div>
     <div class="legend" id="year-legend"></div>
-    <h3>NDVI <span class="sub">vine vigor &middot; 10 m</span></h3>
+    <h3><span data-i18n="ndvi_h">NDVI</span> <span class="sub" data-i18n="ndvi_sub">vine vigor &middot; 10 m</span></h3>
     <div class="chart" id="overlay-chart"></div>
-    <h3>NDRE <span class="sub">canopy chlorophyll &middot; 20 m &middot; watch for late-season nutrient stress</span></h3>
+    <h3><span data-i18n="ndre_h">NDRE</span> <span class="sub" data-i18n="ndre_sub">canopy chlorophyll &middot; 20 m &middot; watch for late-season nutrient stress</span></h3>
     <div class="chart" id="ndre-chart"></div>
   </section>
 
   <section>
-    <h2>Current season vs baseline <span class="sub" id="baseline-title"></span></h2>
-    <div class="caption">The latest season against its own prior-season, day-of-year baseline.
+    <h2><span data-i18n="cur_vs_base_h">Current season vs baseline</span> <span class="sub" id="baseline-title"></span></h2>
+    <div class="caption" data-i18n="cur_vs_base_cap">The latest season against its own prior-season, day-of-year baseline.
       Red dots mark flagged (two-in-a-row below the 10th percentile) readings.</div>
     <div class="legend" id="baseline-legend"></div>
     <div class="chart" id="baseline-chart"></div>
   </section>
 
   <section id="outlook-section">
-    <h2>Season outlook <span class="sub">machine-learned projection</span></h2>
-    <div class="caption">A Gaussian-process model trained on this block&rsquo;s prior vine seasons
+    <h2><span data-i18n="outlook_h">Season outlook</span> <span class="sub" data-i18n="outlook_sub">machine-learned projection</span></h2>
+    <div class="caption" data-i18n="outlook_cap">A Gaussian-process model trained on this block&rsquo;s prior vine seasons
       (plus the season so far) projects NDVI through October. The shaded band is the model&rsquo;s
       80% range &mdash; it reflects how much past seasons varied, and it cannot see weather ahead.
       With only a season or two of vine history, treat it as provisional.</div>
@@ -972,8 +1112,8 @@ _TEMPLATE = """<!doctype html>
   </section>
 
   <section id="cmp-section">
-    <h2>This season across blocks</h2>
-    <div class="caption">All blocks together, smoothed like the season curves: if every curve dips
+    <h2 data-i18n="cmp_h">This season across blocks</h2>
+    <div class="caption" data-i18n="cmp_cap">All blocks together, smoothed like the season curves: if every curve dips
       at once the cause is shared (weather, heat, smoke); one curve dipping alone points at that
       block (irrigation, virus, damage).</div>
     <div class="legend" id="cmp-legend"></div>
@@ -981,8 +1121,8 @@ _TEMPLATE = """<!doctype html>
   </section>
 
   <section>
-    <h2>Vigor zones by season</h2>
-    <div class="caption">Within-block zones on the real block outline, one square per
+    <h2 data-i18n="zones_h">Vigor zones by season</h2>
+    <div class="caption" data-i18n="zones_cap">Within-block zones on the real block outline, one square per
       10&nbsp;m pixel. Zones that hold their shape across years read as soil or rootstock;
       one-off zones read as management, irrigation, or damage. Hover a pixel for its
       season-mean NDVI.</div>
@@ -991,8 +1131,8 @@ _TEMPLATE = """<!doctype html>
   </section>
 
   <section id="landsat-section">
-    <h2>Long-term history <span class="sub">Landsat 8/9 &middot; 30 m &middot; since 2014</span></h2>
-    <div class="caption">Growing-season (May&ndash;September) mean NDVI per year from Landsat &mdash;
+    <h2><span data-i18n="landsat_h">Long-term history</span> <span class="sub" data-i18n="landsat_sub">Landsat 8/9 &middot; 30 m &middot; since 2014</span></h2>
+    <div class="caption" data-i18n="landsat_cap">Growing-season (May&ndash;September) mean NDVI per year from Landsat &mdash;
       a different satellite at coarser resolution, so compare shapes across years rather than exact
       values against the Sentinel charts above. Years before the 2024 planting show the previous
       ground cover; the 2021 heat dome and the 2024 freeze year sit in this record. Hover a point
@@ -1002,20 +1142,20 @@ _TEMPLATE = """<!doctype html>
   </section>
 
   <section>
-    <h2>Season features</h2>
-    <div class="caption">Peak NDVI, its day of year, the May&ndash;September integral (NDVI&middot;days),
+    <h2 data-i18n="features_h">Season features</h2>
+    <div class="caption" data-i18n="features_cap">Peak NDVI, its day of year, the May&ndash;September integral (NDVI&middot;days),
       and green-up date. Click a header to sort.</div>
     <div class="overflow"><table id="feat-table"></table></div>
     <div class="toolbar">
-      <button class="btn" id="dl-features">Download features CSV</button>
-      <button class="btn" id="dl-flags">Download flagged readings CSV</button>
+      <button class="btn" id="dl-features" data-i18n="dl_features">Download features CSV</button>
+      <button class="btn" id="dl-flags" data-i18n="dl_flags">Download flagged readings CSV</button>
     </div>
-    <p class="note">Blocks planted in 2024, so seasons before then reflect the previous ground cover;
+    <p class="note" data-i18n-html="planted_note">Blocks planted in 2024, so seasons before then reflect the previous ground cover;
       baselines and &ldquo;typical&rdquo; comparisons respect each block&rsquo;s <code>baseline_start</code>.
       Read early-season flags as provisional until more vine history accrues.</p>
   </section>
 </main>
-<footer>Sentinel-2 L2A (harmonized) &middot; Cloud Score+ mask (cs_cdf &ge; 0.60) &middot;
+<footer id="footer" data-generated="__GENERATED__">Sentinel-2 L2A (harmonized) &middot; Cloud Score+ mask (cs_cdf &ge; 0.60) &middot;
   observations with &ge;80% clear pixels &middot; NDVI 10 m, NDRE 20 m &middot; generated __GENERATED__</footer>
 <script>__JS__</script>
 </body>

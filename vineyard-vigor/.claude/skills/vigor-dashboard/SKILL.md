@@ -104,6 +104,24 @@ that stays throttled. The weekly run splices new scenes incrementally.
 S2 over these blocks effectively starts 2016 (2015 is empty); Landsat
 carries 2014-2015.
 
+## Language toggle (English / Punjabi, added 2026-07-18)
+
+All UI copy lives in the `STRINGS.en` / `STRINGS.pa` table at the top of
+`_JS` in `_webassets.py` (right after the `const DATA =` / `const $ =`
+contract lines, so the payload-extraction test regex still matches). Static
+template text gets a `data-i18n="key"` attribute (or `data-i18n-html` for
+the one caption with an inline `<code>` tag) and is filled by
+`applyStaticI18n()`; every JS-built label goes through `t(key, vars)` with
+`{placeholder}` substitution. The toggle buttons (`#lang-toggle`) call
+`applyStaticI18n()` + `renderAll()` on click and persist the choice to
+`localStorage`. When adding a new section: add both an `en` and a `pa` key
+(never leave `pa` falling back silently — a missing key silently prints
+English, which is fine as a transient state but should get filled in),
+and never build a translated string by concatenating fragments — write the
+whole sentence as one template key per language, since Punjabi word order
+does not match English. Brand/technical terms (`Sentinel-2 NDVI/NDRE`,
+block/site names) intentionally stay in English in both columns.
+
 ## Hard constraints (test-enforced — breaking these fails `tests/test_dashboard.py`)
 
 - The rendered page must contain no `src="http`, no `cdn` substring (any case),
